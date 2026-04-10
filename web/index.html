@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecondBrain | AI Powered Personal Memory</title>
+    <meta name="description" content="Your personal AI memory companion that records, summarizes and indexes your conversations.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo" id="main-logo">
+                <i class="fas fa-brain"></i>
+                <h1>SecondBrain</h1>
+            </div>
+            <div class="status">
+                <span id="status-indicator" class="status-indicator active"></span>
+                <span id="status-text">Live System Connected</span>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Stats Overview -->
+            <section class="stats-grid">
+                <div class="stat-card" id="card-total-memories">
+                    <div class="stat-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="total-memories">1,248</h3>
+                        <p>Total Nodes</p>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-total-speakers">
+                    <div class="stat-icon">
+                        <i class="fas fa-fingerprint"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="total-speakers">12</h3>
+                        <p>Unique Entities</p>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-important">
+                    <div class="stat-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="important-memories">42</h3>
+                        <p>Critical Insights</p>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-today">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="today-memories">5</h3>
+                        <p>Captured Today</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Main Workspace -->
+            <section class="content-grid">
+                <!-- Daily Summary -->
+                <div class="card" id="section-summary">
+                    <div class="card-header">
+                        <h2><i class="fas fa-magic"></i> Intel Summary</h2>
+                        <button onclick="loadSummary()" class="btn btn-primary" id="btn-refresh-summary">
+                            <i class="fas fa-wand-sparkles"></i> Synthesize
+                        </button>
+                    </div>
+                    <div class="card-content">
+                        <div id="summary-content" class="summary-content">
+                            <p class="placeholder-text">Synthesize your data stream to generate a comprehensive daily briefing...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Query -->
+                <div class="card" id="section-query">
+                    <div class="card-header">
+                        <h2><i class="fas fa-comment-dots"></i> Neural Query</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="query-section">
+                            <textarea 
+                                id="query-input" 
+                                placeholder="Query your neural network (e.g., 'What was the last thing we discussed about the project?')"
+                                rows="3"
+                            ></textarea>
+                            <button onclick="askQuery()" class="btn btn-primary" id="btn-ask">
+                                <i class="fas fa-paper-plane"></i> Execute Query
+                            </button>
+                            <div id="query-result" class="query-result" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="card" id="section-timeline">
+                    <div class="card-header">
+                        <h2><i class="fas fa-stream"></i> Event Timeline</h2>
+                        <button onclick="loadTimeline()" class="btn btn-secondary" id="btn-refresh-timeline">
+                            <i class="fas fa-rotate"></i>
+                        </button>
+                    </div>
+                    <div class="card-content">
+                        <div id="timeline-content" class="timeline-content">
+                            <p class="placeholder-text">Waiting for fresh memory signals...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insights -->
+                <div class="card" id="section-insights">
+                    <div class="card-header">
+                        <h2><i class="fas fa-lightbulb"></i> Neural Insights</h2>
+                        <button onclick="loadInsights()" class="btn btn-secondary" id="btn-get-insights">
+                            <i class="fas fa-microchip"></i> Analyze
+                        </button>
+                    </div>
+                    <div class="card-content">
+                        <div id="insights-content" class="insights-content">
+                            <p class="placeholder-text">Analyze patterns to uncover hidden connections in your history...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="login-overlay" class="login-overlay" style="display: none;">
+        <div class="login-card">
+            <h2><i class="fas fa-lock"></i> Secure Access</h2>
+            <p>Enter your SecondBrain credentials to continue.</p>
+            <input type="text" id="login-username" placeholder="Username">
+            <input type="password" id="login-password" placeholder="Password">
+            <div class="login-btns">
+                <button onclick="handleLogin()" class="btn btn-primary">Login</button>
+                <button onclick="handleSignup()" class="btn btn-secondary">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

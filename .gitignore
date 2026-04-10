@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+temp.wav
+temp_*.wav
+data/vector_db/*
+!data/vector_db/.gitkeep
+data/*.pkl
+backend/.venv/
+mobile/node_modules/

@@ -1,0 +1,41 @@
+# Core Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+
+# Data Processing
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Vector Database
+faiss-cpu>=1.7.4
+
+# HTTP Client
+requests>=2.31.0
+
+# Audio Processing
+sounddevice>=0.4.6
+faster-whisper>=0.10.0
+
+# Speech Recognition (Optional - for speaker diarization)
+pyannote.audio>=3.1.0
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# Embeddings
+sentence-transformers>=2.2.2
+
+# Optional: GPU Support (uncomment if you have GPU)
+# faiss-gpu>=1.7.4
+
+# Database & Auth
+motor>=3.3.0
+pyjwt>=2.8.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# Development Tools (optional)
+# pytest>=7.4.0
+# black>=23.0.0
+# flake8>=6.0.0
