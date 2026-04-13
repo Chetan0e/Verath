@@ -80,7 +80,7 @@ export default function TimelineScreen() {
                 >
                   <View style={styles.cardHeader}>
                     <Text style={styles.time}>
-                      {new Date(event.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(event.timestamp * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })} • {new Date(event.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                     <View style={[
                       styles.badge,
@@ -95,8 +95,14 @@ export default function TimelineScreen() {
                   <Text style={styles.text}>{event.text}</Text>
                   <View style={styles.footer}>
                     <View style={styles.speakerBadge}>
-                      <MaterialCommunityIcons name="account-tie-outline" size={14} color="#38bdf8" />
-                      <Text style={styles.speaker}>{event.speaker}</Text>
+                      <MaterialCommunityIcons 
+                        name={event.speaker && event.speaker !== "unknown" ? "account-tie" : "account-outline"} 
+                        size={14} 
+                        color={event.speaker && event.speaker !== "unknown" ? "#38bdf8" : "#64748b"} 
+                      />
+                      <Text style={[styles.speaker, { color: event.speaker && event.speaker !== "unknown" ? "#38bdf8" : "#64748b" }]}>
+                        {event.speaker && event.speaker !== "unknown" ? event.speaker : "Unknown Speaker"}
+                      </Text>
                     </View>
                     <View style={styles.sourceBadge}>
                       <MaterialCommunityIcons name="headphones" size={14} color="#64748b" />

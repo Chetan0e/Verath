@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from datetime import datetime
 from app.services.llm import ask_llm
 from app.services.timeline import get_today_timeline, get_recent_timeline
 from app.core.logging_config import logger

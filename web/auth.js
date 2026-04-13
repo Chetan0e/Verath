@@ -3,7 +3,7 @@
  * Connects to FastAPI backend
  */
 
-const API_BASE = "http://localhost:8000"; // Adjust if your backend runs on a different port
+const API_BASE = "http://localhost:8002"; // Adjust if your backend runs on a different port
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginView = document.getElementById('login-view');

@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: secondbrain-backend
+    restart: always
+    ports:
+      - "8002:8002"
+    environment:
+      - ENV=production
+      - MONGO_URI=${MONGO_URI}
+      - DATABASE_NAME=${DATABASE_NAME:-secondbrain_prod}
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+    volumes:
+      - chromadb_data:/app/data/chromadb
+      - voice_profiles:/app/data/voice_profiles
+    secrets:
+      - secret_key
+    depends_on:
+      - mongodb
+    networks:
+      - secondbrain-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # MongoDB (internal only, no exposed ports)
+  mongodb:
+    image: mongo:7
+    container_name: secondbrain-mongodb
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongo_username
+      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_password
+      - MONGO_INITDB_DATABASE=${DATABASE_NAME:-secondbrain_prod}
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    secrets:
+      - mongo_username
+      - mongo_password
+    networks:
+      - secondbrain-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Ollama (optional - GPU passthrough requires host configuration)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: secondbrain-ollama
+    restart: always
+    # Uncomment for GPU support:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - secondbrain-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # Nginx reverse proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: secondbrain-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - secondbrain-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  secondbrain-network:
+    driver: bridge
+
+volumes:
+  chromadb_data:
+  voice_profiles:
+  mongodb_data:
+  mongodb_config:
+  ollama_data:
+
+secrets:
+  secret_key:
+    file: ./secrets/secret_key.txt
+  mongo_username:
+    file: ./secrets/mongo_username.txt
+  mongo_password:
+    file: ./secrets/mongo_password.txt

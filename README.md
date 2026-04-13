@@ -13,6 +13,22 @@
 
 ## 📖 Overview
 
+# SecondBrain
+
+**AI-Powered Personal Memory System**
+
+SecondBrain is your intelligent companion that records, summarizes, and indexes your conversations, meetings, and thoughts. It automatically extracts key entities, dates, and insights, making your personal knowledge searchable and actionable.
+
+## Quick Start (60 seconds)
+
+```bash
+git clone https://github.com/yourusername/secondbrain.git
+cd secondbrain
+cp .env.example .env  # Edit MONGO_URI and SECRET_KEY
+docker-compose up -d
+open http://localhost:8080
+```
+
 SecondBrain is an AI-powered personal memory system that transforms raw audio and text into structured, searchable memories that you can query naturally—like asking your own brain for information. It combines advanced speech recognition, intelligent NLP extraction, vector embeddings, and retrieval-augmented generation (RAG) to create a comprehensive digital memory assistant.
 
 ### Core Capabilities

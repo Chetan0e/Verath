@@ -42,14 +42,35 @@ async def check_and_fire_reminders() -> int:
         dates = entities.get("dates", [])
 
         for date_entry in dates:
-            parsed_str = date_entry.get("parsed_date")
+            # Handle both string dates and dict objects with parsed_date field
+            if isinstance(date_entry, str):
+                parsed_str = date_entry
+            elif isinstance(date_entry, dict):
+                parsed_str = date_entry.get("parsed_date") or date_entry.get("phrase")
+            else:
+                continue
+
             if not parsed_str:
                 continue
 
             try:
-                parsed_date = datetime.fromisoformat(parsed_str)
-            except ValueError:
-                continue
+                # Try to parse as ISO format first
+                if isinstance(parsed_str, str):
+                    parsed_date = datetime.fromisoformat(parsed_str)
+                else:
+                    continue
+            except (ValueError, TypeError):
+                # Try using dateparser as fallback
+                try:
+                    import dateparser
+                    parsed_date = dateparser.parse(parsed_str, settings={
+                        'RELATIVE_BASE': now,
+                        'PREFER_DATES_FROM': 'future'
+                    })
+                    if not parsed_date:
+                        continue
+                except:
+                    continue
 
             # Only alert if the event is within the lookahead window
             if not (now <= parsed_date <= window_end):

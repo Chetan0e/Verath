@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Dimensions, ScrollView } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getStatus, getInsights } from "../services/api";
+import { getStatus, getInsights, startRecording, getTimeline } from "../services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -16,6 +16,9 @@ export default function HomeScreen() {
     uptime: "..."
   });
   const [neuralStream, setNeuralStream] = useState([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState("");
+  const recordingActiveRef = useRef(false);
 
   const fetchStats = async () => {
     if (!isListening) return;
@@ -39,6 +42,78 @@ export default function HomeScreen() {
     }
   };
 
+  const startVoiceRecording = async () => {
+    try {
+      setIsRecording(true);
+      setRecordingStatus("Starting microphone...");
+      recordingActiveRef.current = true;
+      
+      // Continuous recording loop with proper cancellation
+      const recordLoop = async () => {
+        while (recordingActiveRef.current && isListening) {
+          try {
+            const result = await startRecording(5); // Reduced to 5 seconds for faster response
+            if (!recordingActiveRef.current || !isListening) {
+              break; // Stop immediately if recording was cancelled
+            }
+            
+            if (result.success) {
+              setRecordingStatus("Recording active - Saving to timeline");
+              // Fetch timeline after each recording to sync data
+              await fetchTimelineData();
+            } else {
+              setRecordingStatus(`Recording failed: ${result.error}`);
+              // Wait before retrying only if still active
+              if (recordingActiveRef.current && isListening) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+          } catch (error) {
+            console.error("Error in recording loop:", error);
+            setRecordingStatus("Recording error - Retrying...");
+            // Wait before retrying only if still active
+            if (recordingActiveRef.current && isListening) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        }
+        
+        // Clean up when loop exits
+        if (!recordingActiveRef.current || !isListening) {
+          setIsRecording(false);
+          setRecordingStatus("");
+        }
+      };
+      
+      recordLoop();
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      setRecordingStatus("Recording error");
+      setIsRecording(false);
+      recordingActiveRef.current = false;
+    }
+  };
+
+  const fetchTimelineData = async () => {
+    try {
+      const timelineData = await getTimeline();
+      if (timelineData.timeline && timelineData.timeline.length > 0) {
+        setRecordingStatus(`Timeline updated: ${timelineData.timeline.length} entries`);
+        // Update neural stream with latest timeline entries
+        setNeuralStream(timelineData.timeline.slice(0, 5).map(item => ({
+          id: item.id,
+          title: item.importance > 0.7 ? "Critical Memory" : "Memory Captured",
+          text: item.text,
+          timestamp: item.timestamp,
+          speaker: item.speaker,
+          intent: item.intent
+        })));
+      }
+    } catch (error) {
+      console.error("Error fetching timeline:", error);
+    }
+  };
+
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       const token = await AsyncStorage.getItem("sb_token");
@@ -53,6 +128,18 @@ export default function HomeScreen() {
     }, isListening ? 10000 : 30000);
     
     return () => clearInterval(interval);
+  }, [isListening]);
+
+  useEffect(() => {
+    if (isListening) {
+      startVoiceRecording();
+      fetchTimelineData();
+    } else {
+      // Immediately stop recording when isListening becomes false
+      recordingActiveRef.current = false;
+      setIsRecording(false);
+      setRecordingStatus("");
+    }
   }, [isListening]);
 
   useEffect(() => {
@@ -77,6 +164,15 @@ export default function HomeScreen() {
       pulseAnim.setValue(1);
     }
   }, [isListening]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      recordingActiveRef.current = false;
+      setIsRecording(false);
+      setRecordingStatus("");
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -132,6 +228,13 @@ export default function HomeScreen() {
             <View style={[styles.statusDot, { backgroundColor: isListening ? "#10b981" : "#64748b" }]} />
             <Text style={styles.statusText}>{isListening ? "NEURAL CORE ACTIVE" : "SYSTEM STANDBY"}</Text>
           </View>
+          
+          {isRecording && (
+            <View style={styles.recordingBadge}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>{recordingStatus}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.statsRow}>
@@ -172,7 +275,7 @@ export default function HomeScreen() {
                   <Text style={styles.activitySubText}>{item.text}</Text>
                 </View>
                 <Text style={styles.activityTimeLabel}>
-                  {item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "RECENT"}
+                  {item.timestamp ? new Date(item.timestamp * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' • ' + new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "RECENT"}
                 </Text>
               </View>
             ))
@@ -311,6 +414,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1.5,
+  },
+  recordingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    marginTop: 12,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ef4444",
+    marginRight: 10,
+  },
+  recordingText: {
+    color: "#fca5a5",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   statsRow: {
     flexDirection: "row",

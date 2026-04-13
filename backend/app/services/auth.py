@@ -1,6 +1,8 @@
 import logging
-from datetime import datetime, timedelta
 from typing import Optional
+import bcrypt
+importbryp
+
 
 import bcrypt
 from jose import JWTError, jwt
@@ -35,13 +37,15 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ── Token creation ────────────────────────────────────────────────────────────
 def create_access_token(username: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": username, "type": "access", "exp": expire}
+    jti = str(uuid.uuid4())
+    payload = {"sub": username, "type": "access", "exp": expire, "jti": jti}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
 def create_refresh_token(username: str) -> str:
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": username, "type": "refresh", "exp": expire}
+    jti = str(uuid.uuid4())
+    payload = {"sub": username, "type": "refresh", "exp": expire, "jti": jti}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
@@ -64,6 +68,15 @@ def verify_refresh_token(token: str) -> Optional[str]:
         if payload.get("type") != "refresh":
             return None
         return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def decode_access_token(token: str) -> Optional[Dict]:
+    """Decode access token and return payload, or None if invalid."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        return payload
     except JWTError:
         return None
 

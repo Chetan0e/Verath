@@ -17,9 +17,6 @@
                 <h1>SecondBrain</h1>
             </div>
             <div class="header-right">
-                <div class="status">
-                    <span id="status-indicator" class="status-indicator active"></span>
-                    <span id="status-text">Neural Core Link Active</span>
                 </div>
                 <button onclick="handleLogout()" class="btn-icon" title="Terminate Session">
                     <i class="fas fa-sign-out-alt"></i>
@@ -28,8 +25,26 @@
         </header>
 
         <main class="main">
-            <!-- Stats Overview -->
-            <section class="stats-grid">
+            <!-- Navigation Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('dashboard')">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </button>
+                <button class="tab" onclick="switchTab('timeline')">
+                    <i class="fas fa-stream"></i> Timeline
+                </button>
+                <button class="tab" onclick="switchTab('query')">
+                    <i class="fas fa-search"></i> Query
+                </button>
+                <button class="tab" onclick="switchTab('graph')">
+                    <i class="fas fa-project-diagram"></i> Graph
+                </button>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <section class="tab-content active" id="tab-dashboard">
+                <!-- Stats Overview -->
+                <section class="stats-grid">
                 <div class="stat-card" id="card-total-memories">
                     <div class="stat-icon">
                         <i class="fas fa-bolt"></i>
@@ -119,23 +134,35 @@
                         </div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Insights -->
-                <div class="card" id="section-insights">
+            <!-- Graph Tab -->
+            <section class="tab-content" id="tab-graph">
+                <div class="card">
                     <div class="card-header">
-                        <h2><i class="fas fa-lightbulb"></i> Neural Insights</h2>
-                        <button onclick="loadInsights()" class="btn btn-secondary" id="btn-get-insights">
-                            <i class="fas fa-microchip"></i> Analyze
+                        <h2><i class="fas fa-project-diagram"></i> Memory Graph</h2>
+                        <button onclick="loadGraph()" class="btn btn-secondary">
+                            <i class="fas fa-rotate"></i> Refresh
                         </button>
                     </div>
                     <div class="card-content">
-                        <div id="insights-content" class="insights-content">
-                            <p class="placeholder-text">Analyze patterns to uncover hidden connections in your history...</p>
+                        <div id="graph-container" style="width: 100%; height: 500px;"></div>
+                        <div id="graph-details" style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px; display: none;">
+                            <h3>Memory Details</h3>
+                            <p id="graph-details-text"></p>
                         </div>
                     </div>
                 </div>
             </section>
         </main>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+       </div>
+    <script src="app.js">        >
+</body</section>
+</html>        </main>
     </div>
 
     <script>
@@ -151,6 +178,9 @@
         }
     </script>
 
+    <script src="app.js"></script>
+</body>
+</html>
     <script src="app.js"></script>
 </body>
 </html>

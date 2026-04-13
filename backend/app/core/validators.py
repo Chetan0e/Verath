@@ -1,6 +1,6 @@
 import re
 from typing import Optional, List
-from pydantic import validator, BaseModel
+from pydantic import BaseModel, field_validator
 from fastapi import HTTPException, status
 from pathlib import Path
 from app.core.logging_config import logger
@@ -11,14 +11,14 @@ class TextInputValidator(BaseModel):
     text: str
     max_length: int = 10000
     
-    @validator('text')
-    def validate_text(cls, v, values):
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v):
         if not v or not v.strip():
             raise ValueError("Text cannot be empty")
         
-        max_len = values.get('max_length', 10000)
-        if len(v) > max_len:
-            raise ValueError(f"Text exceeds maximum length of {max_len}")
+        if len(v) > cls.max_length:
+            raise ValueError(f"Text exceeds maximum length of {cls.max_length}")
         
         # Check for potential injection patterns
         dangerous_patterns = [
@@ -39,14 +39,14 @@ class QueryValidator(BaseModel):
     query: str
     max_length: int = 500
     
-    @validator('query')
-    def validate_query(cls, v, values):
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v):
         if not v or not v.strip():
             raise ValueError("Query cannot be empty")
         
-        max_len = values.get('max_length', 500)
-        if len(v) > max_len:
-            raise ValueError(f"Query exceeds maximum length of {max_len}")
+        if len(v) > cls.max_length:
+            raise ValueError(f"Query exceeds maximum length of {cls.max_length}")
         
         return v.strip()
 

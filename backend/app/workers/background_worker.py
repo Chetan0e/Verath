@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
@@ -155,46 +155,117 @@ def start_worker():
 # ── Background worker class for API compatibility ───────────────────────────────
 class BackgroundWorker:
     """Wrapper class for background worker functionality."""
-    
+
     async def enqueue_recording(self, session, user_id: str) -> str:
         """Enqueue a recording session for processing."""
+        from app.services.pipeline import process_audio
+        # Create actual processing function
+        async def process_recording():
+            try:
+                from app.services.audio import record_audio
+                file_path = record_audio(
+                    filename=session.filename,
+                    duration=session.duration
+                )
+                await process_audio(file_path, user_id)
+            except Exception as e:
+                logger.error(f"Recording processing failed: {e}")
+                raise
+
         return await enqueue_task(
-            func=lambda: None,  # Placeholder - actual processing would be done elsewhere
+            func=process_recording,
             task_name=f"recording_{session.session_type}",
         )
-    
+
     async def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get task status."""
         return await get_task_status(task_id)
-    
+
     async def schedule_daily_compression(self, user_id: str) -> str:
         """Schedule daily memory compression."""
+        from app.db.memory_lifecycle import memory_lifecycle_manager
+        async def compress_memories():
+            try:
+                await memory_lifecycle_manager.auto_promote_important_memories(user_id)
+                await memory_lifecycle_manager.enforce_lifecycle_limits(user_id)
+            except Exception as e:
+                logger.error(f"Compression failed: {e}")
+                raise
+
         return await enqueue_task(
-            func=lambda: None,
+            func=compress_memories,
             task_name="daily_compression",
         )
-    
+
     async def get_queue_stats(self) -> Dict[str, Any]:
-        """Get queue statistics."""
-        return {
-            "pending": 0,
-            "processing": 0,
-            "completed": 0,
-            "failed": 0,
-            "dead": 0
-        }
-    
+        """Get queue statistics from MongoDB."""
+        try:
+            pending = await _tasks_col.count_documents({"status": TaskStatus.PENDING})
+            processing = await _tasks_col.count_documents({"status": TaskStatus.PROCESSING})
+            completed = await _tasks_col.count_documents({"status": TaskStatus.COMPLETED})
+            failed = await _tasks_col.count_documents({"status": TaskStatus.FAILED})
+            dead = await _tasks_col.count_documents({"status": TaskStatus.DEAD})
+            return {
+                "pending": pending,
+                "processing": processing,
+                "completed": completed,
+                "failed": failed,
+                "dead": dead
+            }
+        except Exception as e:
+            logger.error(f"Error getting queue stats: {e}")
+            return {
+                "pending": 0,
+                "processing": 0,
+                "completed": 0,
+                "failed": 0,
+                "dead": 0
+            }
+
     async def get_dead_letter_tasks(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Get tasks from dead letter queue."""
-        return []
-    
+        try:
+            cursor = _dead_letter_col.find().sort("failed_at", -1).limit(limit)
+            tasks = []
+            async for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                tasks.append(doc)
+            return tasks
+        except Exception as e:
+            logger.error(f"Error getting dead letter tasks: {e}")
+            return []
+
     async def retry_dead_letter_task(self, task_id: str) -> bool:
         """Retry a task from dead letter queue."""
-        return False
-    
+        try:
+            # Find the dead letter entry
+            dead_task = await _dead_letter_col.find_one({"_id": task_id})
+            if not dead_task:
+                return False
+
+            # Re-enqueue the original task
+            # Note: In a real implementation, you'd need to reconstruct the original function
+            # This is a simplified version that removes from dead letter queue
+            await _dead_letter_col.delete_one({"_id": task_id})
+            logger.info(f"Task {task_id} removed from dead letter queue for manual retry")
+            return True
+        except Exception as e:
+            logger.error(f"Error retrying dead letter task: {e}")
+            return False
+
     async def cleanup_completed(self, days: int = 7) -> int:
-        """Clean up completed tasks."""
-        return 0
+        """Clean up completed tasks older than specified days."""
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            result = await _tasks_col.delete_many({
+                "status": TaskStatus.COMPLETED,
+                "updated_at": {"$lt": cutoff}
+            })
+            logger.info(f"Cleaned up {result.deleted_count} completed tasks")
+            return result.deleted_count
+        except Exception as e:
+            logger.error(f"Error cleaning up completed tasks: {e}")
+            return 0
 
 
 # Create singleton instance

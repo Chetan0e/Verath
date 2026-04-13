@@ -18,11 +18,13 @@ def get_current_user_id(token: str = Query(...)) -> str:
 async def query(
     q: str = Query(..., min_length=1, max_length=500),
     limit: int = Query(5, ge=1, le=20),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     intent_filter: str = Query(None),
     min_importance: float = Query(0.0, ge=0.0, le=1.0),
     user_id: str = Depends(get_current_user_id)
 ):
-    """Query the memory system with cross-encoder re-ranking."""
+    """Query the memory system with cross-encoder re-ranking and pagination."""
     try:
         logger.info(f"Query from user {user_id}: {q[:50]}...")
         result = await run_query(
@@ -32,7 +34,25 @@ async def query(
             intent_filter=intent_filter,
             min_importance=min_importance
         )
-        return result
+        
+        # Add pagination metadata
+        total_sources = len(result.get("sources", []))
+        total_pages = (total_sources + page_size - 1) // page_size
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        
+        paginated_sources = result.get("sources", [])[start_idx:end_idx]
+        
+        return {
+            **result,
+            "sources": paginated_sources,
+            "pagination": {
+                "total": total_sources,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages
+            }
+        }
     except HTTPException:
         raise
     except Exception as e:

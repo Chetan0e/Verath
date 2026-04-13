@@ -1,7 +1,113 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../config";
+import axios from "axios";
 
-const BASE_URL = API_BASE_URL; 
+const BASE_URL = API_BASE_URL;
+
+// ── Token refresh lock to prevent race conditions ───────────────────────────────
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+/**
+ * Add a callback to be executed when token refresh completes
+ */
+function subscribeTokenRefresh(callback) {
+  refreshSubscribers.push(callback);
+}
+
+/**
+ * Execute all pending callbacks with new token
+ */
+function onRefreshed(token) {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+}
+
+// Create axios instance
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 30000,
+});
+
+// Request interceptor - inject Bearer token
+api.interceptors.request.use(
+  async (config) => {
+    const token = await AsyncStorage.getItem("sb_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor - handle 401 and auto-refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If error is 401 and we haven't retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // If already refreshing, wait for the refresh to complete
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
+          });
+        }).catch((err) => {
+          return Promise.reject(err);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Attempt to refresh token
+        const refreshToken = await AsyncStorage.getItem("sb_refresh_token");
+        if (!refreshToken) {
+          throw new Error("No refresh token available");
+        }
+
+        const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
+
+        const { access_token, refresh_token: new_refresh_token } = response.data;
+
+        // Store new tokens
+        await AsyncStorage.setItem("sb_token", access_token);
+        await AsyncStorage.setItem("sb_refresh_token", new_refresh_token);
+
+        // Notify all waiting requests
+        onRefreshed(access_token);
+
+        // Retry original request with new token
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed - clear tokens and redirect to login
+        await AsyncStorage.removeItem("sb_token");
+        await AsyncStorage.removeItem("sb_refresh_token");
+        await AsyncStorage.removeItem("sb_username");
+        
+        // Note: Navigation would need to be handled by the React Native navigation system
+        // This is a placeholder - actual implementation would use navigation.navigate('Login')
+        console.error("Token refresh failed, user must log in again");
+        
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 const getAuthHeader = async () => {
   const token = await AsyncStorage.getItem("sb_token");
@@ -114,7 +220,8 @@ export const getStatistics = async () => {
     if (!response.ok) return { total: 0, by_intent: {}, by_speaker: {}, avg_importance: 0.0, recent_count: 0 };
     return await response.json();
   } catch (error) {
-    return { total: 0, by_intent: {}, by_speaker: {}, avg_importance: 0.0, recent_count: 0 };
+    return { total: 0, by_intent: {refresh_token', data.refresh_token);
+    await AsyncStorage.setItem('sb_}, by_speak}, avg_importance: 0.0, recent_count: 0 };
   }
 };
 
@@ -144,7 +251,8 @@ export const getVoiceProfiles = async () => {
     const response = await fetch(`${BASE_URL}/speaker/profiles`, {
       headers: { ...authHeader }
     });
-    
+    refresh_token');
+    await AsyncStorage.removeItem('sb_
     if (!response.ok) throw new Error('Network response was not ok');
     return await response.json();
   } catch (error) {

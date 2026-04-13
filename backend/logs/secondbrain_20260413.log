@@ -1,0 +1,187 @@
+2026-04-13 22:58:04 | INFO     | app.main | SecondBrain starting up...
+2026-04-13 22:58:04 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-13 22:58:04 | INFO     | apscheduler.scheduler | Added job "check_and_fire_reminders" to job store "default"
+2026-04-13 22:58:04 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-13 22:58:04 | INFO     | app.main | Reminder scheduler started (interval: 15 min)
+2026-04-13 22:58:04 | INFO     | app.workers.background_worker | Background worker started
+2026-04-13 23:05:46 | INFO     | app.main | SecondBrain starting up...
+2026-04-13 23:05:46 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-13 23:05:46 | INFO     | apscheduler.scheduler | Added job "check_and_fire_reminders" to job store "default"
+2026-04-13 23:05:46 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-13 23:05:46 | INFO     | app.main | Reminder scheduler started (interval: 15 min)
+2026-04-13 23:05:46 | INFO     | app.workers.background_worker | Background worker started
+2026-04-13 23:05:58 | INFO     | pymongo.serverSelection | {"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "count", "topologyDescription": "<TopologyDescription id: 69dd2796d3b1a7ff96e23f57, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-08vgkw9-shard-00-00.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-01.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-02.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "69dd2796d3b1a7ff96e23f57"}, "remainingTimeMS": 29}
+2026-04-13 23:06:20 | INFO     | app.main | SecondBrain shut down cleanly
+2026-04-13 23:06:20 | INFO     | apscheduler.scheduler | Scheduler has been shut down
+2026-04-13 23:06:20 | INFO     | app.workers.background_worker | Background worker shutting down
+2026-04-13 23:06:28 | INFO     | pymongo.serverSelection | {"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "count", "topologyDescription": "<TopologyDescription id: 69dd295349372694d2f5faa1, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-08vgkw9-shard-00-00.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-01.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-02.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "69dd295349372694d2f5faa1"}, "remainingTimeMS": 29}
+2026-04-13 23:06:33 | INFO     | app.main | SecondBrain starting up...
+2026-04-13 23:06:33 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-13 23:06:33 | INFO     | apscheduler.scheduler | Added job "check_and_fire_reminders" to job store "default"
+2026-04-13 23:06:33 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-13 23:06:33 | INFO     | app.main | Reminder scheduler started (interval: 15 min)
+2026-04-13 23:06:33 | INFO     | app.workers.background_worker | Background worker started
+2026-04-13 23:07:05 | INFO     | app.main | SecondBrain starting up...
+2026-04-13 23:07:05 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-13 23:07:05 | INFO     | apscheduler.scheduler | Added job "check_and_fire_reminders" to job store "default"
+2026-04-13 23:07:05 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-13 23:07:05 | INFO     | app.main | Reminder scheduler started (interval: 15 min)
+2026-04-13 23:07:05 | INFO     | app.workers.background_worker | Background worker started
+2026-04-13 23:07:58 | INFO     | app.main | SecondBrain shut down cleanly
+2026-04-13 23:07:58 | INFO     | apscheduler.scheduler | Scheduler has been shut down
+2026-04-13 23:07:58 | INFO     | app.workers.background_worker | Background worker shutting down
+2026-04-13 23:08:12 | INFO     | app.main | SecondBrain starting up...
+2026-04-13 23:08:12 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-13 23:08:12 | INFO     | apscheduler.scheduler | Added job "check_and_fire_reminders" to job store "default"
+2026-04-13 23:08:12 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-13 23:08:12 | INFO     | app.main | Reminder scheduler started (interval: 15 min)
+2026-04-13 23:08:12 | INFO     | app.workers.background_worker | Background worker started
+2026-04-13 23:09:06 | INFO     | pymongo.serverSelection | {"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "find", "topologyDescription": "<TopologyDescription id: 69dd295149372694d2f5faa0, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-08vgkw9-shard-00-00.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-01.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-02.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "69dd295149372694d2f5faa0"}, "remainingTimeMS": 29}
+2026-04-13 23:09:07 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:09:41 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776101949515.wav
+2026-04-13 23:09:41 | INFO     | app.services.transcription | Loading Whisper model 'base' on cpu (int8)
+2026-04-13 23:09:42 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:09:43 | INFO     | faster_whisper | Detected language 'en' with probability 0.94
+2026-04-13 23:09:48 | INFO     | app.services.transcription | Transcription complete. Language: en (0.94)
+2026-04-13 23:09:48 | INFO     | SecondBrain | Transcribed: I don't know what I am talking about that, but I need to make it like that, according to what I am t...
+2026-04-13 23:09:48 | INFO     | SecondBrain | Extracting memory from text: I don't know what I am talking about that, but I need to make it like that, according to what I am t...
+2026-04-13 23:09:55 | INFO     | SecondBrain | Memory extracted - Intent: meeting, Summary: The text does not contain coherent information that can be summarized into a single clear sentence.
+2026-04-13 23:09:58 | INFO     | SecondBrain | Speaker: unknown, Intent: meeting, Importance: 0.25 (low)
+2026-04-13 23:10:07 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:10:07 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:10:07 | INFO     | app.services.memory_store | Stored memory 18854b66-3484-4f64-81d1-dc80c00f684f for user chetan0e
+2026-04-13 23:10:07 | INFO     | SecondBrain | Stored memory with importance 0.25
+2026-04-13 23:10:07 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776101949515.wav
+2026-04-13 23:12:05 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:12:06 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:12:39 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102128187.wav
+2026-04-13 23:12:39 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:12:40 | INFO     | faster_whisper | Detected language 'nn' with probability 0.63
+2026-04-13 23:12:52 | INFO     | app.services.transcription | Transcription complete. Language: nn (0.63)
+2026-04-13 23:12:52 | INFO     | SecondBrain | Skipping - transcription too short
+2026-04-13 23:12:52 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102128187.wav
+2026-04-13 23:12:52 | INFO     | SecondBrain | Getting timeline for user chetan0e
+2026-04-13 23:12:52 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:13:26 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102131010.wav
+2026-04-13 23:13:26 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:13:27 | INFO     | faster_whisper | Detected language 'en' with probability 0.91
+2026-04-13 23:13:28 | INFO     | app.services.transcription | Transcription complete. Language: en (0.91)
+2026-04-13 23:13:28 | INFO     | SecondBrain | Transcribed: Yeah, regarding that, consider warnings, this is not a critical amount of information you should lik...
+2026-04-13 23:13:28 | INFO     | SecondBrain | Extracting memory from text: Yeah, regarding that, consider warnings, this is not a critical amount of information you should lik...
+2026-04-13 23:13:31 | INFO     | SecondBrain | Memory extracted - Intent: task, Summary: This text suggests that the provided information, such as warnings and sounds, is non-critical.
+2026-04-13 23:13:33 | INFO     | SecondBrain | Speaker: unknown, Intent: task, Importance: 0.40 (medium)
+2026-04-13 23:13:34 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:13:34 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:13:34 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:14:08 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102132940.wav
+2026-04-13 23:14:08 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:14:09 | INFO     | faster_whisper | Detected language 'en' with probability 0.85
+2026-04-13 23:14:10 | INFO     | app.services.transcription | Transcription complete. Language: en (0.85)
+2026-04-13 23:14:10 | INFO     | SecondBrain | Transcribed: I think this, I think it takes one entry so I need to be there, but not yet, but it talks. Thank you...
+2026-04-13 23:14:10 | INFO     | SecondBrain | Extracting memory from text: I think this, I think it takes one entry so I need to be there, but not yet, but it talks. Thank you...
+2026-04-13 23:14:12 | INFO     | SecondBrain | Memory extracted - Intent: None, Summary: The speaker expresses gratitude or appreciation.
+2026-04-13 23:14:16 | INFO     | SecondBrain | Speaker: unknown, Intent: None, Importance: 0.00 (minimal)
+2026-04-13 23:14:18 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:14:18 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:14:18 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:14:18 | INFO     | app.services.memory_store | Stored memory c344eeea-b964-4434-8993-bac1c532744d for user chetan0e
+2026-04-13 23:14:18 | INFO     | SecondBrain | Stored memory with importance 0.40
+2026-04-13 23:14:18 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102131010.wav
+2026-04-13 23:14:18 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:14:52 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102132971.wav
+2026-04-13 23:14:52 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:14:53 | INFO     | faster_whisper | Detected language 'en' with probability 0.85
+2026-04-13 23:14:59 | INFO     | app.services.transcription | Transcription complete. Language: en (0.85)
+2026-04-13 23:14:59 | INFO     | SecondBrain | Transcribed: your setting to timeline. But why did timeline is not I will do the same thing. I will do the same t...
+2026-04-13 23:14:59 | INFO     | SecondBrain | Extracting memory from text: your setting to timeline. But why did timeline is not I will do the same thing. I will do the same t...
+2026-04-13 23:15:02 | INFO     | SecondBrain | Memory extracted - Intent: commitment, Summary: You are committing to performing the same action repeatedly.
+2026-04-13 23:15:05 | INFO     | SecondBrain | Speaker: unknown, Intent: commitment, Importance: 0.35 (low)
+2026-04-13 23:15:09 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:15:09 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:15:09 | INFO     | app.services.memory_store | Stored memory 7817c9e6-a093-4999-a005-d82d8866f927 for user chetan0e
+2026-04-13 23:15:09 | INFO     | SecondBrain | Stored memory with importance 0.00
+2026-04-13 23:15:09 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102132940.wav
+2026-04-13 23:15:10 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:10 | INFO     | app.services.memory_store | Stored memory 478ee43a-ac1b-435c-888b-9cbe77125998 for user chetan0e
+2026-04-13 23:15:10 | INFO     | SecondBrain | Stored memory with importance 0.35
+2026-04-13 23:15:10 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102132971.wav
+2026-04-13 23:15:10 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:10 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:10 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:10 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:15:43 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102179901.wav
+2026-04-13 23:15:43 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:15:44 | INFO     | faster_whisper | Detected language 'en' with probability 0.42
+2026-04-13 23:15:44 | INFO     | app.services.transcription | Transcription complete. Language: en (0.42)
+2026-04-13 23:15:44 | INFO     | SecondBrain | Skipping - transcription too short
+2026-04-13 23:15:44 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102179901.wav
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Getting timeline for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:44 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Getting timeline for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Extracting insights for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Getting timeline for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Getting timeline for user chetan0e
+2026-04-13 23:15:45 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:16:15 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102347700.wav
+2026-04-13 23:16:16 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:16:16 | INFO     | faster_whisper | Detected language 'en' with probability 0.51
+2026-04-13 23:16:17 | INFO     | app.services.transcription | Transcription complete. Language: en (0.51)
+2026-04-13 23:16:17 | INFO     | SecondBrain | Skipping - transcription too short
+2026-04-13 23:16:17 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102347700.wav
+2026-04-13 23:16:17 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:16:59 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102351951.wav
+2026-04-13 23:17:00 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:17:00 | INFO     | faster_whisper | Detected language 'te' with probability 0.68
+2026-04-13 23:17:08 | INFO     | app.services.transcription | Transcription complete. Language: te (0.68)
+2026-04-13 23:17:08 | INFO     | SecondBrain | Skipping - transcription too short
+2026-04-13 23:17:08 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102351951.wav
+2026-04-13 23:17:08 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:17:41 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102347984.wav
+2026-04-13 23:17:42 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:17:42 | INFO     | faster_whisper | Detected language 'en' with probability 0.35
+2026-04-13 23:17:43 | INFO     | app.services.transcription | Transcription complete. Language: en (0.35)
+2026-04-13 23:17:43 | INFO     | SecondBrain | Transcribed: Some of the registration. Website making competition or things. We're using it by just a little bit....
+2026-04-13 23:17:43 | INFO     | SecondBrain | Extracting memory from text: Some of the registration. Website making competition or things. We're using it by just a little bit....
+2026-04-13 23:17:45 | INFO     | SecondBrain | Memory extracted - Intent: None, Summary: A website-making competition is being utilized for a project, as stated by the speaker.
+2026-04-13 23:17:49 | INFO     | SecondBrain | Speaker: unknown, Intent: None, Importance: 0.25 (low)
+2026-04-13 23:17:49 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:17:49 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:17:49 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:18:22 | INFO     | SecondBrain | Transcribing audio: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102347984.wav
+2026-04-13 23:18:22 | INFO     | faster_whisper | Processing audio with duration 00:30.000
+2026-04-13 23:18:22 | INFO     | faster_whisper | Detected language 'tr' with probability 0.15
+2026-04-13 23:18:23 | INFO     | app.services.transcription | Transcription complete. Language: tr (0.15)
+2026-04-13 23:18:23 | INFO     | SecondBrain | Transcribed: Evet. Evet. Evet. Evet. Evet. Tamam....
+2026-04-13 23:18:23 | INFO     | SecondBrain | Extracting memory from text: Evet. Evet. Evet. Evet. Evet. Tamam....
+2026-04-13 23:18:26 | INFO     | SecondBrain | Memory extracted - Intent: None, Summary: The repeated phrase "Evet" (meaning "yes" in Turkish) suggests affirmation or agreement to multiple propositions, followed by "Tamam" (meaning "finished" or "that's all"). Together, the phrases indicate a series of agreements or confirmations and the completion of discussions.
+2026-04-13 23:18:30 | INFO     | SecondBrain | Speaker: unknown, Intent: None, Importance: 0.00 (minimal)
+2026-04-13 23:18:34 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:18:34 | INFO     | httpx | HTTP Request: POST http://127.0.0.1:11434/api/embeddings "HTTP/1.1 200 OK"
+2026-04-13 23:18:34 | INFO     | app.services.memory_store | Stored memory d273e10d-f5e0-4def-8bd1-a7a22fc9f969 for user chetan0e
+2026-04-13 23:18:34 | INFO     | SecondBrain | Stored memory with importance 0.25
+2026-04-13 23:18:34 | INFO     | SecondBrain | Cleaned up temp file: C:\Users\Aris\Desktop\project\secondbrain\backend\recording_1776102347984.wav
+2026-04-13 23:18:34 | INFO     | SecondBrain | Recording audio for user chetan0e
+2026-04-13 23:22:05 | INFO     | apscheduler.executors.default | Running job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:07:05 UTC)" (scheduled at 2026-04-13 17:52:05.747240+00:00)
+2026-04-13 23:22:05 | INFO     | pymongo.serverSelection | {"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "find", "topologyDescription": "<TopologyDescription id: 69dd29afa42125a8116b411c, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-08vgkw9-shard-00-00.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-01.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-02.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "69dd29afa42125a8116b411c"}, "remainingTimeMS": 29}
+2026-04-13 23:22:06 | INFO     | apscheduler.executors.default | Job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:07:05 UTC)" executed successfully
+2026-04-13 23:23:12 | INFO     | apscheduler.executors.default | Running job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:08:12 UTC)" (scheduled at 2026-04-13 17:53:12.442230+00:00)
+2026-04-13 23:23:12 | INFO     | pymongo.serverSelection | {"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "find", "topologyDescription": "<TopologyDescription id: 69dd29faee21b058b5664224, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-08vgkw9-shard-00-00.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-01.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-08vgkw9-shard-00-02.d7dlkdt.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "69dd29faee21b058b5664224"}, "remainingTimeMS": 29}
+2026-04-13 23:23:13 | INFO     | apscheduler.executors.default | Job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:08:12 UTC)" executed successfully
+2026-04-13 23:37:05 | INFO     | apscheduler.executors.default | Running job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:22:05 UTC)" (scheduled at 2026-04-13 18:07:05.747240+00:00)
+2026-04-13 23:37:05 | INFO     | apscheduler.executors.default | Job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:22:05 UTC)" executed successfully
+2026-04-13 23:38:12 | INFO     | apscheduler.executors.default | Running job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:23:12 UTC)" (scheduled at 2026-04-13 18:08:12.442230+00:00)
+2026-04-13 23:38:12 | INFO     | apscheduler.executors.default | Job "check_and_fire_reminders (trigger: interval[0:15:00], next run at: 2026-04-13 18:23:12 UTC)" executed successfully
+2026-04-13 23:42:15 | INFO     | app.main | SecondBrain shut down cleanly
+2026-04-13 23:42:15 | INFO     | apscheduler.scheduler | Scheduler has been shut down
+2026-04-13 23:42:15 | INFO     | app.workers.background_worker | Background worker shutting down

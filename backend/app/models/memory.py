@@ -1,13 +1,22 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any, Literal
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Dict, Any, Literal, Annotated
 from datetime import datetime
 from bson import ObjectId
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import core_schema
 
 
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        python_schema = core_schema.with_info_plain_validator_function(
+            cls.validate,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                str,
+                return_schema=core_schema.str_schema(),
+            ),
+        )
+        return python_schema
 
     @classmethod
     def validate(cls, v):
@@ -16,8 +25,8 @@ class PyObjectId(ObjectId):
         return ObjectId(v)
 
     @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, _core_schema, handler):
+        return {"type": "string"}
 
 
 class Memory(BaseModel):

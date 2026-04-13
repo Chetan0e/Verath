@@ -1,0 +1,27 @@
+# Ruff configuration for SecondBrain
+
+target-version = "py311"
+
+[lint]
+# Enable the following rule sets
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (security)
+]
+
+# Ignore specific rules
+ignore = [
+    "S101",  # Allow assert in tests
+    "E501",  # Ignore line length (set to 120 via line-length)
+]
+
+# Line length limit
+line-length = 120
+
+# Per-file ignores
+[lint.per-file-ignores]
+"tests/*" = ["S101"]  # Allow asserts in tests

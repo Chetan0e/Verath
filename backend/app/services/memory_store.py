@@ -8,7 +8,7 @@ from chromadb.config import Settings as ChromaSettings
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import settings
-from app.services.embedding import get_embedding
+from app.services.embedding import get_embedding, get_embeddings_batch
 
 logger = logging.getLogger(__name__)
 
@@ -48,44 +48,112 @@ async def store_memory(
     Store a memory in both MongoDB (full document) and ChromaDB (vector + metadata).
     Returns the new memory's ID.
     """
-    memory_id = str(uuid.uuid4())
-    now = datetime.utcnow()
-
-    # Sanitise metadata for ChromaDB — values must be str/int/float/bool
-    chroma_meta = {
+    mem_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow()
+    
+    # Sanitize metadata for ChromaDB (no nested dicts, no MongoDB-specific types)
+    sanitized_metadata = {
         "user_id": user_id,
-        "intent": str(metadata.get("intent", "general")),
-        "speaker": str(metadata.get("speaker", "unknown")),
-        "importance": float(metadata.get("importance", 0.5)),
-        "lifecycle": str(metadata.get("lifecycle", "short_term")),
-        "timestamp": now.isoformat(),
+        "intent": metadata.get("intent", "unknown"),
+        "speaker": metadata.get("speaker", "unknown"),
+        "importance": metadata.get("importance", 0.0),
+        "lifecycle": metadata.get("lifecycle", "short_term"),
+        "timestamp": timestamp.isoformat(),
     }
-
-    # 1. Generate embedding
+    
+    # Generate embedding
     embedding = get_embedding(text)
-
-    # 2. Upsert into ChromaDB
-    collection = _get_collection(user_id)
-    collection.upsert(
-        ids=[memory_id],
-        embeddings=[embedding],
-        documents=[text],
-        metadatas=[chroma_meta],
-    )
-
-    # 3. Store full document in MongoDB
-    mongo_doc = {
-        "_id": memory_id,
+    
+    # Store in MongoDB
+    doc = {
+        "_id": mem_id,
         "user_id": user_id,
         "text": text,
         "metadata": metadata,
-        "lifecycle": metadata.get("lifecycle", "short_term"),
-        "created_at": now,
-        "updated_at": now,
+        "embedding": embedding,
+        "created_at": timestamp,
+        "updated_at": timestamp,
     }
-    await _memories_collection().insert_one(mongo_doc)
+    await _memories_collection().insert_one(doc)
+    
+    # Store in ChromaDB
+    collection = _get_collection(user_id)
+    collection.upsert(
+        ids=[mem_id],
+        embeddings=[embedding],
+        documents=[text],
+        metadatas=[sanitized_metadata]
+    )
+    
+    return mem_id
 
-    logger.info(f"Stored memory {memory_id} for user {user_id}")
+
+async def store_memories_batch(
+    user_id: str,
+    items: List[Dict[str, Any]]
+) -> List[str]:
+    """
+    Store multiple memories in batch using batch embedding generation.
+    
+    Args:
+        user_id: User ID
+        items: List of dicts with 'text' and 'metadata' keys
+        
+    Returns:
+        List of memory IDs (same order as input)
+    """
+    if not items:
+        return []
+    
+    # Single item - use regular store
+    if len(items) == 1:
+        return [await store_memory(user_id, items[0]["text"], items[0]["metadata"])]
+    
+    timestamp = datetime.utcnow()
+    mem_ids = [str(uuid.uuid4()) for _ in items]
+    texts = [item["text"] for item in items]
+    
+    # Batch generate embeddings
+    embeddings = await get_embeddings_batch(texts)
+    
+    # Prepare MongoDB documents
+    docs = []
+    chroma_metadatas = []
+    for i, item in enumerate(items):
+        metadata = item["metadata"]
+        sanitized_metadata = {
+            "user_id": user_id,
+            "intent": metadata.get("intent", "unknown"),
+            "speaker": metadata.get("speaker", "unknown"),
+            "importance": metadata.get("importance", 0.0),
+            "lifecycle": metadata.get("lifecycle", "short_term"),
+            "timestamp": timestamp.isoformat(),
+        }
+        docs.append({
+            "_id": mem_ids[i],
+            "user_id": user_id,
+            "text": texts[i],
+            "metadata": metadata,
+            "embedding": embeddings[i],
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        })
+        chroma_metadatas.append(sanitized_metadata)
+    
+    # Batch insert to MongoDB
+    await _memories_collection().insert_many(docs)
+    
+    # Batch upsert to ChromaDB
+    collection = _get_collection(user_id)
+    collection.upsert(
+        ids=mem_ids,
+        embeddings=embeddings,
+        documents=texts,
+        metadatas=chroma_metadatas
+    )
+    
+    logger.info(f"Batch stored {len(items)} memories for user {user_id}")
+    return mem_ids
     return memory_id
 
 
@@ -105,11 +173,12 @@ async def search_memories(
     query_embedding = get_embedding(query)
 
     # Build ChromaDB where clause
+    # ChromaDB doesn't support MongoDB-style operators like $gte
+    # We'll filter by intent only and handle importance in post-processing
     where: Dict[str, Any] = {"user_id": user_id}
     if intent_filter:
         where["intent"] = intent_filter
-    if min_importance > 0.0:
-        where["importance"] = {"$gte": min_importance}
+    # Note: min_importance filtering is handled in post-processing due to ChromaDB limitations
 
     try:
         results = collection.query(
@@ -125,10 +194,16 @@ async def search_memories(
     memories = []
     if results and results["ids"]:
         for i, mem_id in enumerate(results["ids"][0]):
+            metadata = results["metadatas"][0][i]
+            # Post-process importance filter since ChromaDB doesn't support $gte
+            if min_importance > 0.0:
+                importance = metadata.get("importance", 0.0)
+                if importance < min_importance:
+                    continue
             memories.append({
                 "id": mem_id,
                 "text": results["documents"][0][i],
-                "metadata": results["metadatas"][0][i],
+                "metadata": metadata,
                 "score": 1 - results["distances"][0][i],  # cosine → similarity
             })
 

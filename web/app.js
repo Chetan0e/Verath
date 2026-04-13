@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8002";
 let AUTH_TOKEN = localStorage.getItem('sb_token');
 
 // Initialize dashboard
