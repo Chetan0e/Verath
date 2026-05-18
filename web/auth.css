@@ -126,13 +126,14 @@ body.auth-page {
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
   backdrop-filter: blur(10px);
-  transition: transform var(--duration-base), border-color var(--duration-base), box-shadow var(--duration-base);
+  transition: all var(--duration-base) var(--ease-out);
 }
 
 .feature-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  transform: translateY(-6px) scale(1.02);
+  border-color: rgba(108, 99, 255, 0.25); /* Sleek purple glow */
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45), 0 0 20px rgba(108, 99, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .feature-icon-wrapper {
@@ -316,8 +317,11 @@ body.auth-page {
 }
 
 .auth-tab:hover:not(.active) {
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateY(-1px);
 }
+
 
 .auth-tab.active {
   background: var(--verath-surface);
