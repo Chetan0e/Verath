@@ -1012,10 +1012,10 @@ p  { font-size: 0.9375rem; color: var(--text-secondary); }
 
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  20%       { transform: translateX(-6px); }
-  40%       { transform: translateX(6px); }
-  60%       { transform: translateX(-4px); }
-  80%       { transform: translateX(4px); }
+  20%       { transform: translateX(-3px); }
+  40%       { transform: translateX(3px); }
+  60%       { transform: translateX(-2px); }
+  80%       { transform: translateX(2px); }
 }
 
 .alert-error {
@@ -1032,31 +1032,33 @@ p  { font-size: 0.9375rem; color: var(--text-secondary); }
 }
 
 /* ── 4. Enhanced glassmorphism hover ── */
-.glass-hover {
-  transition:
-    border-color var(--duration-base) var(--ease-out),
-    box-shadow   var(--duration-base) var(--ease-out),
-    transform    var(--duration-base) var(--ease-out),
-    background   var(--duration-base) var(--ease-out);
+.glass-hover:hover {
+  border-color: rgba(108, 99, 255, 0.35) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(108, 99, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025) !important;
+  transform: translateY(-2px);
   will-change: transform;
 }
 
 .glass-hover:hover {
-  border-color: rgba(108, 99, 255, 0.4) !important;
+  border-color: rgba(108, 99, 255, 0.35) !important;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(108, 99, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.035) !important;
-  transform: translateY(-3px);
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(108, 99, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025) !important;
+  transform: translateY(-2px);
 }
 
 /* Deeper glow variant for stat cards */
 .stat-card.glass-hover:hover {
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 30px rgba(108, 99, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    0 0 15px rgba(108, 99, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* ── 5. Form accessibility ── */

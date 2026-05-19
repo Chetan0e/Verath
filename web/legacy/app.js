@@ -382,7 +382,8 @@ async function loadMemories() {
         container.classList.remove('state-loading');
         container.classList.add('state-success');
         container.innerHTML = memories.map((m, i) => renderMemoryCard(m, i)).join('');
-        setTimeout(() => container.classList.remove('state-success'), 600);
+        if (container._successTimer) clearTimeout(container._successTimer);
+        container._successTimer = setTimeout(() => container.classList.remove('state-success'), 600);
     } catch (error) {
         console.error('Error loading memories:', error);
         container.classList.remove('state-loading');
@@ -393,7 +394,8 @@ async function loadMemories() {
                 Error loading memories.
                 <button onclick="loadMemories()" class="btn btn-ghost btn-sm" style="margin-left:auto">Retry</button>
             </div>`;
-        setTimeout(() => container.classList.remove('state-error'), 1000);
+        if (container._errorTimer) clearTimeout(container._errorTimer);
+        container._errorTimer = setTimeout(() => container.classList.remove('state-error'), 1000);
     }
 }
 
@@ -429,7 +431,8 @@ function renderMemoryCard(memory, index) {
 
 // Update importance label
 function updateImportanceLabel(input) {
-    document.getElementById('importance-label').textContent = `Min importance: ${input.value}%`;
+  document.getElementById('importance-label').textContent = `Min importance: ${input.value}%`;
+  input.setAttribute('aria-valuenow', input.value);
 }
 
 // Load insights
