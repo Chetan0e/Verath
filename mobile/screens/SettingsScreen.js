@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TOKEN_KEY, REFRESH_KEY, USERNAME_KEY } from "../services/authKeys";
 
 const { width } = Dimensions.get("window");
 
@@ -13,8 +14,9 @@ export default function SettingsScreen({ onLogout }) {
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.removeItem("sb_token");
-      await AsyncStorage.removeItem("sb_username");
+      await AsyncStorage.removeItem(TOKEN_KEY);
+      await AsyncStorage.removeItem(REFRESH_KEY);
+      await AsyncStorage.removeItem(USERNAME_KEY);
       if (onLogout) onLogout();
     } catch (e) {
       console.error(e);

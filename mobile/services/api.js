@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TOKEN_KEY, REFRESH_KEY, USERNAME_KEY } from "./authKeys";
 import { API_BASE_URL } from "../config";
 import axios from "axios";
 
@@ -68,8 +69,8 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt to refresh token
-        const refreshToken = await AsyncStorage.getItem("sb_refresh_token");
+          // Attempt to refresh token
+          const refreshToken = await AsyncStorage.getItem(REFRESH_KEY);
         if (!refreshToken) {
           throw new Error("No refresh token available");
         }
@@ -81,9 +82,8 @@ api.interceptors.response.use(
         const { access_token, refresh_token: new_refresh_token } = response.data;
 
         // Store new tokens
-        await AsyncStorage.setItem("verath_token", access_token);
-        await AsyncStorage.setItem("verath_refresh_token", new_refresh_token);
-        await AsyncStorage.removeItem("verath_username");
+        await AsyncStorage.setItem(TOKEN_KEY, access_token);
+        await AsyncStorage.setItem(REFRESH_KEY, new_refresh_token);
         onRefreshed(access_token);
 
         // Retry original request with new token
@@ -110,7 +110,7 @@ api.interceptors.response.use(
 );
 
 const getAuthHeader = async () => {
-  const token = await AsyncStorage.getItem("verath_token");
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
@@ -349,8 +349,9 @@ export const login = async (username, password) => {
     }
     
     const data = await response.json();
-    await AsyncStorage.setItem('verath_token', data.access_token);
-    await AsyncStorage.setItem('verath_username', data.username);
+    await AsyncStorage.setItem(TOKEN_KEY, data.access_token);
+    if (data.refresh_token) await AsyncStorage.setItem(REFRESH_KEY, data.refresh_token);
+    if (data.username) await AsyncStorage.setItem(USERNAME_KEY, data.username);
     return data;
   } catch (error) {
     console.error('Error logging in:', error);
@@ -380,8 +381,9 @@ export const signup = async (username, password) => {
 
 export const logout = async () => {
   try {
-    await AsyncStorage.removeItem('verath_token');
-    await AsyncStorage.removeItem('verath_username');
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(REFRESH_KEY);
+    await AsyncStorage.removeItem(USERNAME_KEY);
     return true;
   } catch (error) {
     console.error('Error logging out:', error);

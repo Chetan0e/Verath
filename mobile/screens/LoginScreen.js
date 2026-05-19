@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TOKEN_KEY, REFRESH_KEY, USERNAME_KEY } from "../services/authKeys";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
 
@@ -39,8 +40,11 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
       });
 
       if (response.data.access_token) {
-        await AsyncStorage.setItem("sb_token", response.data.access_token);
-        await AsyncStorage.setItem("sb_username", username);
+        await AsyncStorage.setItem(TOKEN_KEY, response.data.access_token);
+        if (response.data.refresh_token) {
+          await AsyncStorage.setItem(REFRESH_KEY, response.data.refresh_token);
+        }
+        await AsyncStorage.setItem(USERNAME_KEY, username);
         onLoginSuccess();
       } else {
         Alert.alert("Login Failed", "Invalid credentials");
