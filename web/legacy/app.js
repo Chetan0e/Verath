@@ -352,7 +352,8 @@ async function loadMemories() {
     const intentFilter = document.getElementById('intent-filter').value;
     const importanceFilter = document.getElementById('importance-filter').value;
     
-    // Show skeleton while loading
+    // Show loading state
+    container.classList.add('state-loading');
     container.innerHTML = '<div class="skeleton" style="width:100%;height:200px;border-radius:var(--radius-lg)"></div>'.repeat(3);
     
     try {
@@ -378,10 +379,21 @@ async function loadMemories() {
             return;
         }
         
+        container.classList.remove('state-loading');
+        container.classList.add('state-success');
         container.innerHTML = memories.map((m, i) => renderMemoryCard(m, i)).join('');
+        setTimeout(() => container.classList.remove('state-success'), 600);
     } catch (error) {
         console.error('Error loading memories:', error);
-        container.innerHTML = '<p class="filter-label" style="grid-column: 1 / -1;">Error loading memories. <button onclick="loadMemories()" class="btn btn-ghost btn-sm">Retry</button></p>';
+        container.classList.remove('state-loading');
+        container.classList.add('state-error');
+        container.innerHTML = `
+            <div class="alert-error" style="grid-column: 1 / -1;">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                Error loading memories.
+                <button onclick="loadMemories()" class="btn btn-ghost btn-sm" style="margin-left:auto">Retry</button>
+            </div>`;
+        setTimeout(() => container.classList.remove('state-error'), 1000);
     }
 }
 
@@ -484,10 +496,12 @@ async function submitQuery() {
     input.value = '';
     container.scrollTop = container.scrollHeight;
     
-    // Show loading
+    // Show loading state
+    const askBtn = document.getElementById('ask-btn');
+    if (askBtn) askBtn.classList.add('btn-loading');
     const loadingId = 'loading-' + Date.now();
     container.innerHTML += `
-        <div class="message message-ai animate-fade-up" id="${loadingId}">
+        <div class="message message-ai animate-fade-up state-loading" id="${loadingId}">
             <div class="message-avatar">V</div>
             <div class="message-body">
                 <p class="message-text"><i class="fa-solid fa-circle-notch fa-spin"></i> Thinking...</p>
@@ -504,6 +518,7 @@ async function submitQuery() {
         
         // Remove loading
         document.getElementById(loadingId).remove();
+        if (askBtn) askBtn.classList.remove('btn-loading');
         
         // Render answer
         const sourcesHtml = (data.sources || []).map(s => `
@@ -535,8 +550,9 @@ async function submitQuery() {
     } catch (error) {
         console.error('Error submitting query:', error);
         document.getElementById(loadingId).remove();
+        if (askBtn) askBtn.classList.remove('btn-loading');
         container.innerHTML += `
-            <div class="message message-ai animate-fade-up">
+            <div class="message message-ai animate-fade-up state-error">
                 <div class="message-avatar">V</div>
                 <div class="message-body">
                     <p class="message-text" style="color: var(--accent-warm);">Sorry, I couldn't process your question. Please try again.</p>

@@ -102,7 +102,7 @@
 
         <!-- Stat Cards -->
         <div class="stat-grid stagger animate-fade-up" style="animation-delay:100ms">
-          <div class="stat-card">
+          <div class="stat-card glass-hover">
             <div class="stat-icon primary">
               <i class="fa-solid fa-brain"></i>
             </div>
@@ -144,7 +144,7 @@
 
         <!-- Two-column layout -->
         <div class="dashboard-grid animate-fade-up" style="animation-delay:200ms">
-          <div class="card">
+          <div class="card glass-hover">
             <div class="card-header">
               <h3>Today's Timeline</h3>
               <button class="btn btn-ghost btn-sm" onclick="navigateTo('timeline')">View all</button>
@@ -190,7 +190,7 @@
             <p class="page-subtitle">Your recorded thoughts, meetings, and commitments</p>
           </div>
           <div class="filter-bar">
-            <select class="input select-sm" id="intent-filter" onchange="loadMemories()">
+            <select class="input select-sm" id="intent-filter" onchange="loadMemories()" aria-label="Filter memories by type">
               <option value="">All types</option>
               <option value="meeting">Meetings</option>
               <option value="deadline">Deadlines</option>
@@ -198,7 +198,7 @@
               <option value="reminder">Reminders</option>
               <option value="commitment">Commitments</option>
             </select>
-            <input type="range" id="importance-filter" min="0" max="100" value="0" oninput="updateImportanceLabel(this)" onchange="loadMemories()">
+            <input type="range" id="importance-filter" min="0" max="100" value="0" oninput="updateImportanceLabel(this)" onchange="loadMemories()" aria-label="Minimum importance filter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <span id="importance-label" class="filter-label">Min importance: 0%</span>
           </div>
         </div>
@@ -284,7 +284,7 @@
           </div>
 
           <div class="ask-input-bar">
-            <input type="text" id="ask-input" class="input" placeholder="Ask Verath anything…" onkeydown="if(event.key==='Enter')submitQuery()">
+            <input type="text" id="ask-input" class="input" placeholder="Ask Verath anything…" onkeydown="if(event.key==='Enter')submitQuery()" aria-label="Ask Verath a question about your memories" aria-required="false" autocomplete="off">
             <button class="btn btn-primary" onclick="submitQuery()" id="ask-btn">
               <i class="fa-solid fa-arrow-up"></i>
             </button>

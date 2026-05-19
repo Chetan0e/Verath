@@ -927,3 +927,261 @@ p  { font-size: 0.9375rem; color: var(--text-secondary); }
   /* Better layout for memory cards on mobile */
   .memories-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 1. State feedback: Loading ── */
+.state-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.state-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(108, 99, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.4s infinite linear;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+@keyframes shimmer-sweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Loading spinner inside buttons */
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin: -8px 0 0 -8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── 2. State feedback: Success ── */
+.state-success {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.15) !important;
+  animation: success-pop 0.35s var(--ease-spring);
+}
+
+@keyframes success-pop {
+  0%   { transform: scale(0.97); }
+  60%  { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.alert-success {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--success);
+  font-size: 0.875rem;
+  animation: fadeUp var(--duration-base) var(--ease-out);
+}
+
+/* ── 3. State feedback: Error ── */
+.state-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px rgba(255, 90, 90, 0.15) !important;
+  animation: shake 0.4s var(--ease-out);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+.alert-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: rgba(255, 90, 90, 0.08);
+  border: 1px solid rgba(255, 90, 90, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 0.875rem;
+  animation: fadeUp var(--duration-base) var(--ease-out);
+}
+
+/* ── 4. Enhanced glassmorphism hover ── */
+.glass-hover {
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow   var(--duration-base) var(--ease-out),
+    transform    var(--duration-base) var(--ease-out),
+    background   var(--duration-base) var(--ease-out);
+  will-change: transform;
+}
+
+.glass-hover:hover {
+  border-color: rgba(108, 99, 255, 0.4) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(108, 99, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035) !important;
+  transform: translateY(-3px);
+}
+
+/* Deeper glow variant for stat cards */
+.stat-card.glass-hover:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(108, 99, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── 5. Form accessibility ── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.form-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.form-label .required {
+  color: var(--danger);
+  margin-left: 3px;
+}
+
+/* Touch-target minimum 44×44px */
+.input,
+.btn,
+.nav-item,
+.suggestion-chip {
+  min-height: 44px;
+}
+
+.btn-sm { min-height: 32px; }
+
+/* Input focus ring — WCAG AA */
+.input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.2);
+  outline: none;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 90, 90, 0.15);
+}
+
+.input[aria-invalid="false"] {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.12);
+}
+
+/* Helper text below inputs */
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.form-hint.error { color: var(--danger); }
+.form-hint.success { color: var(--success); }
+
+/* ── 6. Mobile responsiveness extras ── */
+@media (max-width: 480px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  .page-header {
+    gap: var(--space-sm);
+  }
+
+  .page-title {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .header-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .filter-bar select,
+  .filter-bar input[type="range"] {
+    width: 100%;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ask-container {
+    height: calc(100vh - 180px);
+  }
+
+  .ask-input-bar {
+    padding: var(--space-sm);
+  }
+
+  .card {
+    padding: var(--space-md);
+  }
+
+  .stat-card {
+    padding: var(--space-md);
+  }
+
+  /* Stack memory card footer on very small screens */
+  .memory-footer {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+}
+
+/* Smooth focus-visible ring for keyboard nav */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
