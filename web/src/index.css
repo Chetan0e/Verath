@@ -20,16 +20,32 @@
 }
 
 .glass-card {
-  @apply bg-surface backdrop-blur-xl border border-border shadow-2xl;
+  @apply bg-surface/80 backdrop-blur-2xl border border-white/10 shadow-2xl transition-all duration-300;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .input-field {
-  @apply w-full bg-surface-hover border border-border rounded-lg pr-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200;
+  @apply w-full bg-surface-hover/80 border border-border rounded-xl pr-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/40 transition-all duration-300;
+  backdrop-filter: blur(12px);
+}
+
+.input-field:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .btn-primary {
-  @apply w-full bg-primary hover:bg-violet-600 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2;
-  box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.39);
+  @apply w-full bg-primary hover:bg-violet-600 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.39);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 28px rgba(124, 58, 237, 0.35),
+    0 0 18px rgba(139, 92, 246, 0.25);
 }
 
 .btn-primary:hover {

@@ -142,9 +142,9 @@ const AuthLanding = () => {
               <motion.div 
                 key={idx}
                 whileHover={{ y: -4, scale: 1.02 }}
-                className="p-5 rounded-2xl glass-card border-t border-t-white/10 group cursor-default transition-all"
+                className="p-5 rounded-2xl glass-card border border-white/10 group cursor-default transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(139,92,246,0.18)] hover:bg-white/[0.03]"
               >
-                <div className="w-10 h-10 rounded-lg bg-surface-hover flex items-center justify-center mb-4 group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                <div className="w-10 h-10 rounded-lg bg-surface-hover flex items-center justify-center mb-4 transition-all duration-300 group-hover:bg-primary/20 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-primary/20">
                   <feature.icon className="w-5 h-5 text-gray-400 group-hover:text-primary" />
                 </div>
                 <h3 className="text-white font-medium mb-1">{feature.title}</h3>
@@ -258,7 +258,7 @@ const AuthLanding = () => {
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="btn-primary mt-6 disabled:opacity-50"
+                  className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_25px_rgba(139,92,246,0.35)] hover:-translate-y-0.5"
                   disabled={loading}
                 >
                   {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
