@@ -177,10 +177,10 @@ const AuthLanding = () => {
          animate={{ 
          opacity: 1, 
          x: 0,
-         y: [0, -4, 0]
+         y: [0, -2, 0]
          }}
          transition={{ 
-         duration: 6,
+         duration: 8,
          repeat: Infinity,
          ease: "easeInOut"
          }}
@@ -274,7 +274,7 @@ const AuthLanding = () => {
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_25px_rgba(139,92,246,0.35)] hover:-translate-y-0.5"
+                  className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_16px_rgba(139,92,246,0.22)] hover:-translate-y-0.5"
                   disabled={loading}
                 >
                   {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
