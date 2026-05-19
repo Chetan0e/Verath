@@ -173,26 +173,42 @@ const AuthLanding = () => {
 
         {/* Right Section - Auth Card */}
         <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="flex justify-center lg:justify-end"
-        >
+         initial={{ opacity: 0, x: 20 }}
+         animate={{ 
+         opacity: 1, 
+         x: 0,
+         y: [0, -4, 0]
+         }}
+         transition={{ 
+         duration: 6,
+         repeat: Infinity,
+         ease: "easeInOut"
+         }}
+         className="flex justify-center lg:justify-end"
+         >
           <div className="relative w-full max-w-md">
             {/* Ambient Card Glow */}
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-3xl blur opacity-20"></div>
             
-            <div className="relative p-8 rounded-3xl glass-card border border-white/10">
+            <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
                 <button 
                   onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${isLogin ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
-                >
+                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
+                 isLogin
+                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
+                 : 'text-gray-400 hover:text-white hover:bg-white/5'
+                 }`}
+                 >
                   Sign In
                 </button>
                 <button 
                   onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${!isLogin ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
+                 !isLogin
+                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
+                 : 'text-gray-400 hover:text-white hover:bg-white/5'
+                 }`}
                 >
                   Register
                 </button>
@@ -271,16 +287,16 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-[#0a0d1d] text-gray-500">Or continue with</span>
+                 <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm"> Or continue with</span>
                 </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-surface border border-border hover:bg-surface-hover transition-colors text-sm font-medium text-white">
+                <button className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface border border-border hover:bg-surface-hover hover:border-primary/30 hover:-translate-y-0.5 transition-all duration-300 text-sm font-medium text-white hover:shadow-lg hover:shadow-primary/10">
                   <GoogleIcon />
                   Google
                 </button>
-                <button className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-surface border border-border hover:bg-surface-hover transition-colors text-sm font-medium text-white">
+                <button className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface border border-border hover:bg-surface-hover hover:border-primary/30 hover:-translate-y-0.5 transition-all duration-300 text-sm font-medium text-white hover:shadow-lg hover:shadow-primary/10">
                   <GithubIcon />
                   GitHub
                 </button>
