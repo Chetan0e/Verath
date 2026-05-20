@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import Button from '../../components/Button';
+import Input from '../../components/Input';
+import { validateAuthForm } from '../../utils/validation';
 import { motion } from 'framer-motion';
 import { 
   Brain, 
@@ -18,7 +21,7 @@ const AuthLanding = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname
     ? "http://127.0.0.1:8000"
@@ -26,6 +29,12 @@ const AuthLanding = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = validateAuthForm(username, password, isLogin);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     setError('');
     setSuccess('');
@@ -226,43 +235,28 @@ const AuthLanding = () => {
               <form className="space-y-4" onSubmit={handleSubmit}>
                 {error && <div className="text-red-400 text-sm">{error}</div>}
                 {success && <div className="text-green-400 text-sm">{success}</div>}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-300 ml-1">
-                    {isLogin ? 'Username' : 'Choose a Username'}
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input 
-                      type="text" 
-                      placeholder={isLogin ? "username" : "creative_mind"}
-                      className="input-field pl-10" 
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+                <Input
+                  type="text"
+                  placeholder={isLogin ? "username" : "creative_mind"}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  icon={User}
+                  label={isLogin ? 'Username' : 'Choose a Username'}
+                  required
+                  error={fieldErrors.username}
+                />
 
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between ml-1">
-                    <label className="text-xs font-medium text-gray-300">
-                      {isLogin ? 'Password' : 'Create Password'}
-                    </label>
-                    {isLogin && <a href="#" className="text-xs text-primary hover:text-violet-400 transition-colors">Forgot password?</a>}
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input 
-                      type="password" 
-                      placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
-                      className="input-field pl-10" 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={!isLogin ? 8 : undefined}
-                    />
-                  </div>
-                </div>
+                <Input
+                  type="password"
+                  placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  icon={Lock}
+                  label={isLogin ? 'Password' : 'Create Password'}
+                  required
+                  minLength={!isLogin ? 8 : undefined}
+                  error={fieldErrors.password}
+                />
 
                 {isLogin && (
                   <div className="flex items-center gap-2 mt-2">
@@ -271,15 +265,10 @@ const AuthLanding = () => {
                   </div>
                 )}
 
-                <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_16px_rgba(139,92,246,0.22)] hover:-translate-y-0.5"
-                  disabled={loading}
-                >
-                  {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                <Button type="submit" loading={loading} className="mt-6">
+                  {isLogin ? 'Sign In' : 'Create Account'}
                   {!loading && <ArrowRight className="w-4 h-4" />}
-                </motion.button>
+                </Button>
               </form>
 
               <div className="mt-8 relative">
