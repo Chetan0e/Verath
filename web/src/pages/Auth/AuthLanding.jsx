@@ -9,10 +9,8 @@ import {
   ShieldCheck, 
   Bell, 
   ArrowRight, 
-  Mail, 
   Lock, 
   User, 
-  CheckCircle2 
 } from 'lucide-react';
 
 const AuthLanding = () => {
@@ -21,6 +19,7 @@ const AuthLanding = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
 
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname
@@ -85,38 +84,28 @@ const AuthLanding = () => {
 
   return (
     <div className="relative min-h-screen bg-background overflow-x-hidden flex items-center justify-center font-sans">
-      {/* Background Elements */}
       <div className="absolute inset-0 bg-mesh z-0" />
       <div className="bg-noise" />
       
-      {/* Animated Glow Blobs */}
       <motion.div 
-        animate={{ 
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.5, 0.3],
-        }}
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary rounded-full mix-blend-screen filter blur-[128px] opacity-30 z-0 pointer-events-none"
       />
       <motion.div 
-        animate={{ 
-          scale: [1, 1.3, 1],
-          opacity: [0.2, 0.4, 0.2],
-        }}
+        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
         className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-secondary rounded-full mix-blend-screen filter blur-[128px] opacity-20 z-0 pointer-events-none"
       />
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-12 lg:py-20 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center min-h-screen">
         
-        {/* Left Section - Branding & Value Proposition */}
         <motion.div 
           variants={containerVariants}
           initial="hidden"
           animate="visible"
           className="flex flex-col space-y-10"
         >
-          {/* Header */}
           <motion.div variants={itemVariants} className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
@@ -130,7 +119,6 @@ const AuthLanding = () => {
             </div>
           </motion.div>
 
-          {/* Hero Copy */}
           <motion.div variants={itemVariants} className="space-y-6">
             <h1 className="text-5xl lg:text-7xl font-display font-bold tracking-tight leading-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400">
               Your intelligent <br/>digital memory.
@@ -140,7 +128,6 @@ const AuthLanding = () => {
             </p>
           </motion.div>
 
-          {/* Features Grid */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { icon: Brain, title: "AI Memory Extraction", desc: "Auto-detects intents & entities." },
@@ -166,7 +153,7 @@ const AuthLanding = () => {
             <div className="flex -space-x-3">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className={`w-10 h-10 rounded-full border-2 border-background bg-surface flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 z-${50-i*10}`}>
-                   <User className="w-4 h-4 text-gray-400" />
+                  <User className="w-4 h-4 text-gray-400" />
                 </div>
               ))}
             </div>
@@ -177,47 +164,36 @@ const AuthLanding = () => {
               <span className="text-xs text-gray-400 font-medium mt-1">Trusted by 10,000+ thinkers</span>
             </div>
           </motion.div>
-
         </motion.div>
 
-        {/* Right Section - Auth Card */}
         <motion.div 
-         initial={{ opacity: 0, x: 20 }}
-         animate={{ 
-         opacity: 1, 
-         x: 0,
-         y: [0, -2, 0]
-         }}
-         transition={{ 
-         duration: 8,
-         repeat: Infinity,
-         ease: "easeInOut"
-         }}
-         className="flex justify-center lg:justify-end"
-         >
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0, y: [0, -2, 0] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="flex justify-center lg:justify-end"
+        >
           <div className="relative w-full max-w-md">
-            {/* Ambient Card Glow */}
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-3xl blur opacity-20"></div>
             
             <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
                 <button 
-                  onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
-                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                 isLogin
-                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                 : 'text-gray-400 hover:text-white hover:bg-white/5'
-                 }`}
-                 >
+                  onClick={() => { setIsLogin(true); setError(''); setSuccess(''); setFieldErrors({}); }}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
+                    isLogin
+                    ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
                   Sign In
                 </button>
                 <button 
-                  onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
+                  onClick={() => { setIsLogin(false); setError(''); setSuccess(''); setFieldErrors({}); }}
                   className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                 !isLogin
-                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                 : 'text-gray-400 hover:text-white hover:bg-white/5'
-                 }`}
+                    !isLogin
+                    ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
                 >
                   Register
                 </button>
@@ -235,6 +211,7 @@ const AuthLanding = () => {
               <form className="space-y-4" onSubmit={handleSubmit}>
                 {error && <div className="text-red-400 text-sm">{error}</div>}
                 {success && <div className="text-green-400 text-sm">{success}</div>}
+
                 <Input
                   type="text"
                   placeholder={isLogin ? "username" : "creative_mind"}
@@ -260,8 +237,14 @@ const AuthLanding = () => {
 
                 {isLogin && (
                   <div className="flex items-center gap-2 mt-2">
-                    <input type="checkbox" id="remember" className="rounded border-gray-600 bg-surface text-primary focus:ring-primary focus:ring-offset-background" />
-                    <label htmlFor="remember" className="text-xs text-gray-400 cursor-pointer">Remember me for 30 days</label>
+                    <input 
+                      type="checkbox" 
+                      id="remember" 
+                      className="rounded border-gray-600 bg-surface text-primary focus:ring-primary focus:ring-offset-background" 
+                    />
+                    <label htmlFor="remember" className="text-xs text-gray-400 cursor-pointer">
+                      Remember me for 30 days
+                    </label>
                   </div>
                 )}
 
@@ -276,7 +259,9 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                 <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm"> Or continue with</span>
+                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">
+                    Or continue with
+                  </span>
                 </div>
               </div>
 
@@ -293,13 +278,11 @@ const AuthLanding = () => {
             </div>
           </div>
         </motion.div>
-
       </div>
     </div>
   );
 };
 
-// SVG Icons
 const Star = () => (
   <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />

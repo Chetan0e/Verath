@@ -24,6 +24,7 @@ const Button = ({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
+      aria-disabled={disabled || loading}
       className={`${base} ${variants[variant]} ${className}`}
     >
       {loading ? 'Processing...' : children}
