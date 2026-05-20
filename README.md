@@ -902,8 +902,6 @@ npm run dev
 ```
 The React frontend will be available at `http://localhost:5173`.
 
-Navigate to `http://localhost:8080`
-
 ---
 
 ## 🚀 Setup Instructions
