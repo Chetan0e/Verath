@@ -18,7 +18,7 @@ async def process_audio(file_path: str, user_id: str, timestamp: Optional[str] =
     """Process audio file through the complete pipeline with intelligent extraction."""
     try:
         # Check privacy mode
-        if is_private():
+        if is_private(user_id):
             logger.info("Privacy mode enabled - skipping processing")
             return None
         
