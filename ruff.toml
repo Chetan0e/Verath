@@ -1,6 +1,7 @@
 # Ruff configuration for Verath
 
 target-version = "py311"
+line-length = 120
 
 [lint]
 # Enable the following rule sets
@@ -20,7 +21,7 @@ ignore = [
 ]
 
 # Line length limit
-line-length = 120
+
 
 # Per-file ignores
 [lint.per-file-ignores]
