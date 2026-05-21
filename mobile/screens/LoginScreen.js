@@ -1,15 +1,8 @@
 import React, { useState } from "react";
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
-  Platform, 
-  Dimensions, 
-  ActivityIndicator,
-  Alert
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, Dimensions, 
+  ActivityIndicator, Alert
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -19,26 +12,25 @@ import axios from "axios";
 import { API_BASE_URL } from "../config";
 
 const { width } = Dimensions.get("window");
-const API_BASE = API_BASE_URL; // Use centralized config
+const API_BASE = API_BASE_URL;
 
 export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedInput, setFocusedInput] = useState(null);
 
   const handleLogin = async () => {
     if (!username || !password) {
       Alert.alert("Error", "Please enter both username and password");
       return;
     }
-
     setLoading(true);
     try {
       const response = await axios.post(`${API_BASE}/auth/login`, {
         username,
         password,
       });
-
       if (response.data.access_token) {
         await AsyncStorage.setItem(TOKEN_KEY, response.data.access_token);
         if (response.data.refresh_token) {
@@ -82,8 +74,12 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
       </View>
 
       <View style={styles.form}>
-        <View style={styles.inputContainer}>
-          <MaterialCommunityIcons name="account-outline" size={20} color="#64748b" style={styles.inputIcon} />
+
+        <View style={[
+          styles.inputContainer,
+          focusedInput === 'username' && styles.inputFocused
+        ]}>
+          <MaterialCommunityIcons name="account-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Username"
@@ -91,11 +87,16 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
+            onFocus={() => setFocusedInput('username')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <MaterialCommunityIcons name="lock-outline" size={20} color="#64748b" style={styles.inputIcon} />
+        <View style={[
+          styles.inputContainer,
+          focusedInput === 'password' && styles.inputFocused
+        ]}>
+          <MaterialCommunityIcons name="lock-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Password"
@@ -103,6 +104,8 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            onFocus={() => setFocusedInput('password')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
 
@@ -130,6 +133,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
             No neural profile? <Text style={styles.footerLink}>Create Instance</Text>
           </Text>
         </TouchableOpacity>
+
       </View>
     </KeyboardAvoidingView>
   );
@@ -170,7 +174,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: "#94a3b8",
     marginTop: 8,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -178,16 +182,25 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 16,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 24,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    borderColor: "rgba(255,255,255,0.15)",
     paddingHorizontal: 16,
     height: 60,
+  },
+  inputFocused: {
+    borderColor: "#38bdf8",
+    borderWidth: 1.5,
   },
   inputIcon: {
     marginRight: 12,
@@ -224,7 +237,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   footerText: {
-    color: "#64748b",
+    color: "#94a3b8",
     fontSize: 14,
   },
   footerLink: {
