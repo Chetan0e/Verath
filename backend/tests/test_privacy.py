@@ -7,10 +7,10 @@ class TestPrivacy:
 
     async def test_privacy_endpoints_require_authentication(self, client):
         response = await client.get("/privacy/")
-        assert response.status_code == 401
+        assert response.status_code == 403
 
         response = await client.post("/privacy/toggle")
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     async def test_privacy_toggle_is_scoped_to_each_user(self, client, auth_headers):
         other_headers = {"Authorization": f"Bearer {create_access_token('other_user')}"}
