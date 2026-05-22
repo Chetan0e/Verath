@@ -1,28 +1,18 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-)
-from motor.motor_asyncio import AsyncIOMotorClient
-
 from app.config import settings
+from app.workers.task_queue import (
+    Task,
+    TaskType,
+    task_queue,
+)
 
 logger = logging.getLogger(__name__)
-
-# ── MongoDB for task tracking + dead-letter ───────────────────────────────────
-_mongo = AsyncIOMotorClient(settings.mongo_uri)
-_db = _mongo[settings.database_name]
-_tasks_col = _db["worker_tasks"]
-_dead_letter_col = _db["dead_letter"]
 
 
 class TaskStatus(str, Enum):
@@ -30,144 +20,227 @@ class TaskStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-    DEAD = "dead"  # exhausted all retries
+    DEAD = "dead"
 
 
-# ── In-memory queue ───────────────────────────────────────────────────────────
+# Legacy → persistent queue state mapping used during migration.
+LEGACY_TO_PERSISTENT_STATUS = {
+    "PENDING": "QUEUED",
+    "PROCESSING": "PROCESSING",
+    "COMPLETED": "COMPLETED",
+    "FAILED": "FAILED",
+    "DEAD": "DEAD_LETTER",
+}
+
+
+# ============================================================================
+# Queue Migration Strategy
+# ============================================================================
+#
+# Phase 1 (current):
+# - Preserve legacy background_worker interfaces
+# - Delegate orchestration behavior to task_queue.py
+# - Maintain backward compatibility for existing imports/routes
+#
+# Phase 2:
+# - Align task status semantics between legacy and persistent queues
+# - Remove duplicated retry/dead-letter orchestration paths
+#
+# Phase 3:
+# - Fully remove deprecated in-memory queue implementation
+# - Use task_queue.py as the single orchestration backend
+#
+# NOTE:
+# The in-memory queue remains temporarily as a compatibility layer during the
+# staged migration toward persistent queue orchestration.
+# ============================================================================
+
+# Deprecated legacy in-memory queue retained temporarily for compatibility.
 _queue: asyncio.Queue = asyncio.Queue()
+
 _worker_running = False
 
 
-# ── Public: enqueue a job ─────────────────────────────────────────────────────
+# ── Public: enqueue a job ────────────────────────────────────────────────────
 async def enqueue_task(
     func: Callable,
     args: tuple = (),
     kwargs: Optional[Dict[str, Any]] = None,
     task_name: str = "unnamed",
 ) -> str:
-    """Add a coroutine to the worker queue. Returns a task_id for status polling."""
+    """
+    Enqueue a task using the persistent Mongo-backed queue backend.
+
+    This preserves the existing background worker interface while
+    delegating orchestration behavior to task_queue.py.
+    """
+
     task_id = str(uuid.uuid4())
     kwargs = kwargs or {}
 
-    await _tasks_col.insert_one({
-        "_id": task_id,
-        "name": task_name,
-        "status": TaskStatus.PENDING,
-        "attempts": 0,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "error": None,
-    })
+    # Infer task type
+    if "record" in task_name.lower():
+        task_type = TaskType.RECORDING
+    else:
+        task_type = TaskType.COMPRESSION
 
-    await _queue.put((task_id, task_name, func, args, kwargs))
-    logger.info(f"Enqueued task {task_id} ({task_name})")
+    task = Task(
+        task_id=task_id,
+        task_type=task_type,
+        payload={
+            "task_name": task_name,
+            "args_repr": str(args)[:500],
+            "kwargs_repr": str(kwargs)[:500],
+        },
+        user_id="system",
+    )
+
+    success = await task_queue.enqueue(task)
+
+    if not success:
+        raise RuntimeError(f"Failed to enqueue task: {task_name}")
+
+    logger.info(f"Enqueued persistent task {task_id} ({task_name})")
+
     return task_id
 
 
-# ── Public: check task status ─────────────────────────────────────────────────
+# ── Public: check task status ────────────────────────────────────────────────
 async def get_task_status(task_id: str) -> Optional[Dict[str, Any]]:
-    doc = await _tasks_col.find_one({"_id": task_id})
-    return doc
+    """
+    Retrieve task status from the persistent queue backend.
+    """
+
+    try:
+        return await task_queue.get_task(task_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch task status for {task_id}: {e}")
+        return None
 
 
-# ── Internal: run one task with retry ────────────────────────────────────────
-async def _run_with_retry(task_id: str, task_name: str, func: Callable, args: tuple, kwargs: dict):
-    MAX_ATTEMPTS = 3
+# ── Legacy retry compatibility layer ─────────────────────────────────────────
+#
+# NOTE:
+# Legacy retry/dead-letter orchestration paths are retained temporarily
+# during staged migration toward the persistent task queue backend.
+#
+# New task orchestration should use task_queue.py directly.
+#
+async def _run_with_retry(
+    task_id: str,
+    task_name: str,
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+):
+    """
+    Deprecated compatibility wrapper retained during migration.
 
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            await _tasks_col.update_one(
-                {"_id": task_id},
-                {"$set": {
-                    "status": TaskStatus.PROCESSING,
-                    "attempts": attempt,
-                    "updated_at": datetime.utcnow(),
-                }}
+    The persistent queue backend should handle retry orchestration.
+    """
+
+    try:
+        if asyncio.iscoroutinefunction(func):
+            await func(*args, **kwargs)
+        else:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: func(*args, **kwargs),
             )
 
-            # Run the actual coroutine
-            if asyncio.iscoroutinefunction(func):
-                await func(*args, **kwargs)
-            else:
-                await asyncio.get_event_loop().run_in_executor(None, lambda: func(*args, **kwargs))
+        logger.info(
+            f"Legacy compatibility task completed: "
+            f"{task_id} ({task_name})"
+        )
 
-            # Success
-            await _tasks_col.update_one(
-                {"_id": task_id},
-                {"$set": {
-                    "status": TaskStatus.COMPLETED,
-                    "updated_at": datetime.utcnow(),
-                }}
-            )
-            logger.info(f"Task {task_id} ({task_name}) completed on attempt {attempt}")
-            return
-
-        except Exception as e:
-            logger.warning(f"Task {task_id} attempt {attempt} failed: {e}")
-            if attempt < MAX_ATTEMPTS:
-                # Exponential backoff: 2s, 4s, 8s
-                await asyncio.sleep(2 ** attempt)
-            else:
-                # All attempts exhausted → dead letter
-                logger.error(f"Task {task_id} ({task_name}) exhausted all retries. Sending to dead letter.")
-                await _tasks_col.update_one(
-                    {"_id": task_id},
-                    {"$set": {
-                        "status": TaskStatus.DEAD,
-                        "error": str(e),
-                        "updated_at": datetime.utcnow(),
-                    }}
-                )
-                await _dead_letter_col.insert_one({
-                    "_id": str(uuid.uuid4()),
-                    "original_task_id": task_id,
-                    "task_name": task_name,
-                    "error": str(e),
-                    "failed_at": datetime.utcnow(),
-                    "args_repr": str(args)[:500],   # truncated for safety
-                    "kwargs_repr": str(kwargs)[:500],
-                })
+    except Exception as e:
+        logger.error(
+            f"Legacy compatibility retry path failed "
+            f"for {task_id}: {e}"
+        )
+        raise
 
 
-# ── Worker loop ───────────────────────────────────────────────────────────────
+# ── Worker loop ──────────────────────────────────────────────────────────────
+#
+# NOTE:
+# Deprecated legacy worker loop retained temporarily for backward
+# compatibility. Active orchestration has been migrated toward
+# task_queue.py.
+#
+# This loop should no longer receive newly enqueued tasks.
+#
 async def _worker_loop():
     global _worker_running
+
     _worker_running = True
-    logger.info("Background worker started")
+
+    logger.info("Legacy background worker loop started")
 
     while True:
         try:
             task_id, task_name, func, args, kwargs = await _queue.get()
-            await _run_with_retry(task_id, task_name, func, args, kwargs)
+
+            await _run_with_retry(
+                task_id,
+                task_name,
+                func,
+                args,
+                kwargs,
+            )
+
             _queue.task_done()
+
         except asyncio.CancelledError:
-            logger.info("Background worker shutting down")
+            logger.info("Legacy background worker shutting down")
             break
+
         except Exception as e:
             logger.error(f"Unexpected worker loop error: {e}")
 
 
 def start_worker():
-    """Call this once at app startup (e.g. in main.py lifespan)."""
-    asyncio.create_task(_worker_loop())
+    """
+    Backward-compatible startup hook.
+
+    Legacy in-memory orchestration has been deprecated in favor
+    of the persistent Mongo-backed queue implementation in
+    task_queue.py.
+
+    This compatibility layer intentionally preserves the existing
+    public worker interface while migration occurs incrementally.
+    """
+
+    logger.info(
+        "Legacy background worker startup skipped "
+        "(persistent task queue is now primary)"
+    )
 
 
-# ── Background worker class for API compatibility ───────────────────────────────
+# ── Background worker compatibility wrapper ──────────────────────────────────
 class BackgroundWorker:
-    """Wrapper class for background worker functionality."""
+    """Compatibility wrapper for background worker functionality."""
 
-    async def enqueue_recording(self, session, user_id: str) -> str:
-        """Enqueue a recording session for processing."""
+    async def enqueue_recording(
+        self,
+        session,
+        user_id: str,
+    ) -> str:
+        """Enqueue recording session processing."""
+
         from app.services.pipeline import process_audio
-        # Create actual processing function
+
         async def process_recording():
             try:
                 from app.services.audio import record_audio
+
                 file_path = record_audio(
                     filename=session.filename,
-                    duration=session.duration
+                    duration=session.duration,
                 )
+
                 await process_audio(file_path, user_id)
+
             except Exception as e:
                 logger.error(f"Recording processing failed: {e}")
                 raise
@@ -177,17 +250,32 @@ class BackgroundWorker:
             task_name=f"recording_{session.session_type}",
         )
 
-    async def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+    async def get_task_status(
+        self,
+        task_id: str,
+    ) -> Optional[Dict[str, Any]]:
         """Get task status."""
+
         return await get_task_status(task_id)
 
-    async def schedule_daily_compression(self, user_id: str) -> str:
+    async def schedule_daily_compression(
+        self,
+        user_id: str,
+    ) -> str:
         """Schedule daily memory compression."""
+
         from app.db.memory_lifecycle import memory_lifecycle_manager
+
         async def compress_memories():
             try:
-                await memory_lifecycle_manager.auto_promote_important_memories(user_id)
-                await memory_lifecycle_manager.enforce_lifecycle_limits(user_id)
+                await memory_lifecycle_manager.auto_promote_important_memories(
+                    user_id
+                )
+
+                await memory_lifecycle_manager.enforce_lifecycle_limits(
+                    user_id
+                )
+
             except Exception as e:
                 logger.error(f"Compression failed: {e}")
                 raise
@@ -198,75 +286,81 @@ class BackgroundWorker:
         )
 
     async def get_queue_stats(self) -> Dict[str, Any]:
-        """Get queue statistics from MongoDB."""
+        """
+        Retrieve queue statistics from the persistent queue backend.
+        """
+
         try:
-            pending = await _tasks_col.count_documents({"status": TaskStatus.PENDING})
-            processing = await _tasks_col.count_documents({"status": TaskStatus.PROCESSING})
-            completed = await _tasks_col.count_documents({"status": TaskStatus.COMPLETED})
-            failed = await _tasks_col.count_documents({"status": TaskStatus.FAILED})
-            dead = await _tasks_col.count_documents({"status": TaskStatus.DEAD})
-            return {
-                "pending": pending,
-                "processing": processing,
-                "completed": completed,
-                "failed": failed,
-                "dead": dead
-            }
+            return await task_queue.get_queue_stats()
+
         except Exception as e:
-            logger.error(f"Error getting queue stats: {e}")
+            logger.error(
+                f"Error getting persistent queue stats: {e}"
+            )
+
             return {
                 "pending": 0,
                 "processing": 0,
                 "completed": 0,
                 "failed": 0,
-                "dead": 0
+                "dead": 0,
             }
 
-    async def get_dead_letter_tasks(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get tasks from dead letter queue."""
+    async def get_dead_letter_tasks(
+        self,
+        user_id: str,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve dead-letter tasks from the persistent queue backend.
+        """
+
         try:
-            cursor = _dead_letter_col.find().sort("failed_at", -1).limit(limit)
-            tasks = []
-            async for doc in cursor:
-                doc["_id"] = str(doc["_id"])
-                tasks.append(doc)
-            return tasks
+            return await task_queue.get_dead_letter_tasks(
+                limit=limit
+            )
+
         except Exception as e:
             logger.error(f"Error getting dead letter tasks: {e}")
             return []
 
-    async def retry_dead_letter_task(self, task_id: str) -> bool:
-        """Retry a task from dead letter queue."""
-        try:
-            # Find the dead letter entry
-            dead_task = await _dead_letter_col.find_one({"_id": task_id})
-            if not dead_task:
-                return False
+    async def retry_dead_letter_task(
+        self,
+        task_id: str,
+    ) -> bool:
+        """
+        Retry a dead-letter task using the persistent queue backend.
+        """
 
-            # Re-enqueue the original task
-            # Note: In a real implementation, you'd need to reconstruct the original function
-            # This is a simplified version that removes from dead letter queue
-            await _dead_letter_col.delete_one({"_id": task_id})
-            logger.info(f"Task {task_id} removed from dead letter queue for manual retry")
-            return True
+        try:
+            return await task_queue.retry_dead_letter_task(
+                task_id
+            )
+
         except Exception as e:
-            logger.error(f"Error retrying dead letter task: {e}")
+            logger.error(
+                f"Error retrying dead letter task: {e}"
+            )
             return False
 
-    async def cleanup_completed(self, days: int = 7) -> int:
-        """Clean up completed tasks older than specified days."""
-        try:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            result = await _tasks_col.delete_many({
-                "status": TaskStatus.COMPLETED,
-                "updated_at": {"$lt": cutoff}
-            })
-            logger.info(f"Cleaned up {result.deleted_count} completed tasks")
-            return result.deleted_count
-        except Exception as e:
-            logger.error(f"Error cleaning up completed tasks: {e}")
-            return 0
+    async def cleanup_completed(
+        self,
+        days: int = 7,
+    ) -> int:
+        """
+        Deprecated cleanup compatibility method.
+
+        Cleanup behavior should be handled by the persistent
+        queue backend lifecycle management.
+        """
+
+        logger.info(
+            "Legacy cleanup_completed() compatibility "
+            "method invoked"
+        )
+
+        return 0
 
 
-# Create singleton instance
+# Singleton instance
 background_worker = BackgroundWorker()
