@@ -1,16 +1,62 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Brain, 
-  Search, 
-  ShieldCheck, 
-  Bell, 
-  ArrowRight, 
-  Mail, 
-  Lock, 
-  User, 
-  CheckCircle2 
+import Navbar from '../../components/Navbar';
+import Footer from '../../components/Footer';
+
+import {
+  Brain,
+  Search,
+  ShieldCheck,
+  Bell,
+  ArrowRight,
+  Lock,
+  User,
 } from 'lucide-react';
+
+// ── Word-by-word animated heading ─────────────────────────────────────────
+const AnimatedHeading = ({ text, className }) => {
+  const words = text.split(' ')
+  const container = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.11, delayChildren: 0.3 } }
+  }
+  const word = {
+    hidden: { y: 52, opacity: 0, rotateX: -28 },
+    visible: {
+      y: 0, opacity: 1, rotateX: 0,
+      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
+    }
+  }
+  return (
+    <motion.h1
+      variants={container}
+      initial="hidden"
+      animate="visible"
+      className={className}
+      style={{ perspective: 800, display: 'flex', flexWrap: 'wrap', gap: '0 0.28em', lineHeight: 1.1 }}
+    >
+      {words.map((w, i) => (
+        <span key={i} style={{ overflow: 'hidden', display: 'inline-block' }}>
+          <motion.span variants={word} style={{ display: 'inline-block' }}>
+            {w}
+          </motion.span>
+        </span>
+      ))}
+    </motion.h1>
+  )
+}
+
+// ── Subtitle fade-up ───────────────────────────────────────────────────────
+const AnimatedSubtitle = ({ text, className }) => (
+  <motion.p
+    initial={{ opacity: 0, y: 16 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.7, delay: 1.0, ease: [0.16, 1, 0.3, 1] }}
+    className={className}
+  >
+    {text}
+  </motion.p>
+)
 
 const AuthLanding = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -29,27 +75,19 @@ const AuthLanding = () => {
     setLoading(true);
     setError('');
     setSuccess('');
-
     const endpoint = isLogin ? '/auth/login' : '/auth/signup';
-    
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-
       const data = await response.json();
-
       if (response.ok) {
         localStorage.setItem('verath_token', data.access_token);
         localStorage.setItem('verath_username', username);
-        if (!isLogin) {
-          setSuccess('Account created! Redirecting...');
-        }
-        setTimeout(() => {
-          window.location.href = '/legacy/dashboard.html';
-        }, 500);
+        if (!isLogin) setSuccess('Account created! Redirecting...');
+        setTimeout(() => { window.location.href = '/legacy/dashboard.html'; }, 500);
       } else {
         setError(data.detail || (isLogin ? 'Invalid credentials' : 'Registration failed'));
       }
@@ -63,7 +101,7 @@ const AuthLanding = () => {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
+    visible: {
       opacity: 1,
       transition: { staggerChildren: 0.1, delayChildren: 0.2 }
     }
@@ -75,61 +113,72 @@ const AuthLanding = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-background overflow-x-hidden flex items-center justify-center font-sans">
+    <div className="relative min-h-screen bg-background overflow-x-hidden font-sans">
+      <Navbar />
+
       {/* Background Elements */}
       <div className="absolute inset-0 bg-mesh z-0" />
       <div className="bg-noise" />
-      
+
+      {/* Grid squares — matches loading screen */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{
+        backgroundImage: `
+          linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(99,102,241,0.07) 1px, transparent 1px)
+        `,
+        backgroundSize: '52px 52px',
+      }} />
+      {/* Radial vignette over grid */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{
+        background: 'radial-gradient(ellipse 85% 75% at 50% 40%, transparent 25%, rgba(5,7,20,0.88) 100%)'
+      }} />
+
       {/* Animated Glow Blobs */}
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.5, 0.3],
-        }}
+      <motion.div
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary rounded-full mix-blend-screen filter blur-[128px] opacity-30 z-0 pointer-events-none"
       />
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.3, 1],
-          opacity: [0.2, 0.4, 0.2],
-        }}
+      <motion.div
+        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
         className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-secondary rounded-full mix-blend-screen filter blur-[128px] opacity-20 z-0 pointer-events-none"
       />
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-12 lg:py-20 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center min-h-screen">
-        
-        {/* Left Section - Branding & Value Proposition */}
-        <motion.div 
+      {/* System Online Badge - Centered */}
+      <div className="relative z-10 w-full flex justify-center pt-24 pb-2">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border"
+        >
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-xs font-medium text-gray-300">System Online</span>
+        </motion.div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 lg:py-12 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+
+        {/* Left Section */}
+        <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
           className="flex flex-col space-y-10"
         >
-          {/* Header */}
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
-                <span className="text-white font-display font-bold text-xl">V</span>
-              </div>
-              <span className="text-2xl font-display font-bold tracking-tight text-white">Verath</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-medium text-gray-300">System Online</span>
-            </div>
-          </motion.div>
-
-          {/* Hero Copy */}
-          <motion.div variants={itemVariants} className="space-y-6">
-            <h1 className="text-5xl lg:text-7xl font-display font-bold tracking-tight leading-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400">
-              Your intelligent <br/>digital memory.
-            </h1>
-            <p className="text-lg text-gray-400 leading-relaxed max-w-xl">
-              Capture conversations, thoughts, meetings, and ideas — then retrieve them instantly using AI-powered semantic memory.
-            </p>
-          </motion.div>
+          {/* Hero Copy — animated heading + subtitle */}
+          <div className="space-y-6">
+            <AnimatedHeading
+              text="Your intelligent digital memory."
+              className="text-5xl lg:text-7xl font-display font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400"
+            />
+            <AnimatedSubtitle
+              text="Capture conversations, thoughts, meetings, and ideas — then retrieve them instantly using AI-powered semantic memory."
+              className="text-lg text-gray-400 leading-relaxed max-w-xl"
+            />
+          </div>
 
           {/* Features Grid */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -139,7 +188,7 @@ const AuthLanding = () => {
               { icon: ShieldCheck, title: "Cloud Inference Privacy", desc: "Secure & fast processing." },
               { icon: Bell, title: "Smart Reminder Intelligence", desc: "Extracts temporal deadlines." },
             ].map((feature, idx) => (
-              <motion.div 
+              <motion.div
                 key={idx}
                 whileHover={{ y: -4, scale: 1.02 }}
                 className="p-5 rounded-2xl glass-card border border-white/10 group cursor-default transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(139,92,246,0.18)] hover:bg-white/[0.03]"
@@ -152,63 +201,46 @@ const AuthLanding = () => {
               </motion.div>
             ))}
           </motion.div>
-          
+
+          {/* Trusted By */}
           <motion.div variants={itemVariants} className="flex gap-4 pt-4">
             <div className="flex -space-x-3">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`w-10 h-10 rounded-full border-2 border-background bg-surface flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 z-${50-i*10}`}>
-                   <User className="w-4 h-4 text-gray-400" />
+                <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-surface flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900">
+                  <User className="w-4 h-4 text-gray-400" />
                 </div>
               ))}
             </div>
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(i => <Star key={i} />)}
+                {[1, 2, 3, 4, 5].map(i => <Star key={i} />)}
               </div>
               <span className="text-xs text-gray-400 font-medium mt-1">Trusted by 10,000+ thinkers</span>
             </div>
           </motion.div>
-
         </motion.div>
 
-        {/* Right Section - Auth Card */}
-        <motion.div 
-         initial={{ opacity: 0, x: 20 }}
-         animate={{ 
-         opacity: 1, 
-         x: 0,
-         y: [0, -2, 0]
-         }}
-         transition={{ 
-         duration: 8,
-         repeat: Infinity,
-         ease: "easeInOut"
-         }}
-         className="flex justify-center lg:justify-end"
-         >
+        {/* Right Section - Auth Card — UNTOUCHED */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0, y: [0, -2, 0] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="flex justify-center lg:justify-end"
+        >
           <div className="relative w-full max-w-md">
-            {/* Ambient Card Glow */}
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-3xl blur opacity-20"></div>
-            
+
             <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
-                <button 
+                <button
                   onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
-                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                 isLogin
-                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                 : 'text-gray-400 hover:text-white hover:bg-white/5'
-                 }`}
-                 >
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                >
                   Sign In
                 </button>
-                <button 
+                <button
                   onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                 !isLogin
-                 ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                 : 'text-gray-400 hover:text-white hover:bg-white/5'
-                 }`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${!isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                   Register
                 </button>
@@ -226,16 +258,17 @@ const AuthLanding = () => {
               <form className="space-y-4" onSubmit={handleSubmit}>
                 {error && <div className="text-red-400 text-sm">{error}</div>}
                 {success && <div className="text-green-400 text-sm">{success}</div>}
+
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-gray-300 ml-1">
                     {isLogin ? 'Username' : 'Choose a Username'}
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder={isLogin ? "username" : "creative_mind"}
-                      className="input-field pl-10" 
+                      className="input-field pl-10"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
@@ -252,10 +285,10 @@ const AuthLanding = () => {
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input 
-                      type="password" 
+                    <input
+                      type="password"
                       placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
-                      className="input-field pl-10" 
+                      className="input-field pl-10"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -271,7 +304,7 @@ const AuthLanding = () => {
                   </div>
                 )}
 
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_16px_rgba(139,92,246,0.22)] hover:-translate-y-0.5"
@@ -287,7 +320,7 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                 <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm"> Or continue with</span>
+                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">Or continue with</span>
                 </div>
               </div>
 
@@ -306,11 +339,14 @@ const AuthLanding = () => {
         </motion.div>
 
       </div>
+
+      {/* Footer - Outside Grid */}
+      <Footer />
+
     </div>
   );
 };
 
-// SVG Icons
 const Star = () => (
   <svg className="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
