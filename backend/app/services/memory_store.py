@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -109,28 +109,28 @@ async def store_memories_batch(
 ) -> List[str]:
     """
     Store multiple memories in batch using batch embedding generation.
-    
+
     Args:
         user_id: User ID
         items: List of dicts with 'text' and 'metadata' keys
-        
+
     Returns:
         List of memory IDs (same order as input)
     """
     if not items:
         return []
-    
+
     # Single item - use regular store
     if len(items) == 1:
         return [await store_memory(user_id, items[0]["text"], items[0]["metadata"])]
-    
+
     timestamp = datetime.utcnow()
     mem_ids = [str(uuid.uuid4()) for _ in items]
     texts = [item["text"] for item in items]
-    
+
     # Batch generate embeddings
     embeddings = await get_embeddings_batch(texts)
-    
+
     # Prepare MongoDB documents
     docs = []
     chroma_metadatas = []
@@ -181,7 +181,7 @@ async def store_memories_batch(
         })
 
         raise
-        
+
         logger.info(f"Batch stored {len(items)} memories for user {user_id}")
         return mem_ids
 
@@ -303,10 +303,10 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
         "by_speaker": {},
         "recent_count": 0
     }
-    
+
     # Get total count
     stats["total"] = await col.count_documents({"user_id": user_id})
-    
+
     # Get lifecycle stats
     async for doc in col.aggregate(pipeline):
         lifecycle = doc["_id"] or "short_term"
@@ -314,7 +314,7 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
         # Update avg importance if it's the main stat
         if stats["avg_importance"] == 0.0:
              stats["avg_importance"] = doc.get("avg_importance", 0.0)
-    
+
     # Get intent and speaker stats
     pipeline_extras = [
         {"$match": {"user_id": user_id}},
@@ -324,13 +324,14 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
             "recent": [{"$match": {"created_at": {"$gte": datetime.utcnow() - timedelta(days=1)}}}, {"$count": "count"}]
         }}
     ]
-    
-    
+
     async for doc in col.aggregate(pipeline_extras):
         for item in doc.get("by_intent", []):
-            if item["_id"]: stats["by_intent"][item["_id"]] = item["count"]
+            if item["_id"]:
+                stats["by_intent"][item["_id"]] = item["count"]
         for item in doc.get("by_speaker", []):
-            if item["_id"]: stats["by_speaker"][item["_id"]] = item["count"]
+            if item["_id"]:
+                stats["by_speaker"][item["_id"]] = item["count"]
         if doc.get("recent"):
             stats["recent_count"] = doc["recent"][0]["count"]
 
