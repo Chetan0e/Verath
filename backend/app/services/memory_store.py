@@ -46,13 +46,15 @@ async def store_memory(
     created_at: Optional[datetime] = None
 ) -> str:
     """
-    Store a memory in both MongoDB (full document) and ChromaDB (vector + metadata).
-    Returns the new memory's ID.
+    Store a memory in both MongoDB and ChromaDB.
+
+    If ChromaDB persistence fails after MongoDB insertion,
+    the MongoDB document is rolled back to avoid storage divergence.
     """
+
     mem_id = str(uuid.uuid4())
     timestamp = created_at if created_at else datetime.utcnow()
-    
-    # Sanitize metadata for ChromaDB (no nested dicts, no MongoDB-specific types)
+
     sanitized_metadata = {
         "user_id": user_id,
         "intent": metadata.get("intent", "unknown"),
@@ -61,11 +63,9 @@ async def store_memory(
         "lifecycle": metadata.get("lifecycle", "short_term"),
         "timestamp": timestamp.isoformat(),
     }
-    
-    # Generate embedding
+
     embedding = get_embedding(text)
-    
-    # Store in MongoDB
+
     doc = {
         "_id": mem_id,
         "user_id": user_id,
@@ -75,19 +75,33 @@ async def store_memory(
         "created_at": timestamp,
         "updated_at": timestamp,
     }
-    await _memories_collection().insert_one(doc)
-    
-    # Store in ChromaDB
-    collection = _get_collection(user_id)
-    collection.upsert(
-        ids=[mem_id],
-        embeddings=[embedding],
-        documents=[text],
-        metadatas=[sanitized_metadata]
-    )
-    
-    return mem_id
 
+    collection = _get_collection(user_id)
+
+    # Step 1: insert into MongoDB
+    await _memories_collection().insert_one(doc)
+
+    # Step 2: persist vector state
+    try:
+        collection.upsert(
+            ids=[mem_id],
+            embeddings=[embedding],
+            documents=[text],
+            metadatas=[sanitized_metadata]
+        )
+
+    except Exception as e:
+        logger.error(
+            f"ChromaDB upsert failed for memory {mem_id}, "
+            f"rolling back MongoDB insert: {e}"
+        )
+
+        # Rollback Mongo insert to maintain consistency
+        await _memories_collection().delete_one({"_id": mem_id})
+
+        raise
+
+    return mem_id
 
 async def store_memories_batch(
     user_id: str,
@@ -140,21 +154,36 @@ async def store_memories_batch(
             "updated_at": timestamp,
         })
         chroma_metadatas.append(sanitized_metadata)
-    
-    # Batch insert to MongoDB
-    await _memories_collection().insert_many(docs)
-    
-    # Batch upsert to ChromaDB
+
     collection = _get_collection(user_id)
-    collection.upsert(
-        ids=mem_ids,
-        embeddings=embeddings,
-        documents=texts,
-        metadatas=chroma_metadatas
-    )
-    
-    logger.info(f"Batch stored {len(items)} memories for user {user_id}")
-    return mem_ids
+
+    # Step 1: batch insert into MongoDB
+    await _memories_collection().insert_many(docs)
+
+    # Step 2: batch persist vector state
+    try:
+        collection.upsert(
+            ids=mem_ids,
+            embeddings=embeddings,
+            documents=texts,
+            metadatas=chroma_metadatas
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Batch ChromaDB upsert failed for user {user_id}, "
+            f"rolling back MongoDB batch insert: {e}"
+        )
+
+        # Rollback inserted Mongo documents
+        await _memories_collection().delete_many({
+            "_id": {"$in": mem_ids}
+        })
+
+        raise
+        
+        logger.info(f"Batch stored {len(items)} memories for user {user_id}")
+        return mem_ids
 
 
 # ── Read / Search ─────────────────────────────────────────────────────────────
@@ -232,13 +261,27 @@ async def update_memory_lifecycle(memory_id: str, user_id: str, new_lifecycle: s
 
 # ── Delete ────────────────────────────────────────────────────────────────────
 async def delete_memory(memory_id: str, user_id: str):
-    """Remove a memory from both stores."""
-    await _memories_collection().delete_one({"_id": memory_id})
+    """
+    Remove a memory from both stores.
+
+    ChromaDB deletion is attempted first to avoid orphaned
+    vector embeddings remaining after MongoDB deletion.
+    """
+
     collection = _get_collection(user_id)
+
+    # Step 1: remove vector state first
     try:
         collection.delete(ids=[memory_id])
+
     except Exception as e:
-        logger.warning(f"ChromaDB delete failed for {memory_id}: {e}")
+        logger.error(
+            f"ChromaDB delete failed for {memory_id}: {e}"
+        )
+        raise
+
+    # Step 2: remove MongoDB document
+    await _memories_collection().delete_one({"_id": memory_id})
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
