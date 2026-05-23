@@ -1,4 +1,3 @@
-import logging
 from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Depends
 import os
@@ -73,5 +72,5 @@ async def upload_record(
         if 'file_path' in locals() and os.path.exists(file_path):
             try:
                 os.remove(file_path)
-            except:
+            except OSError:
                 pass

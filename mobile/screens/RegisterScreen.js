@@ -1,15 +1,8 @@
 import React, { useState } from "react";
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
-  Platform, 
-  Dimensions, 
-  ActivityIndicator,
-  Alert
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, Dimensions, 
+  ActivityIndicator, Alert
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -24,20 +17,19 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState(null);
 
   const handleRegister = async () => {
     if (!username || !password) {
       Alert.alert("Error", "Please fill all fields");
       return;
     }
-
     setLoading(true);
     try {
       const response = await axios.post(`${API_BASE}/auth/signup`, {
         username,
         password,
       });
-
       if (response.status === 200 || response.status === 201) {
         Alert.alert("Success", "Neural profile created! Please establish link.");
         onRegisterSuccess();
@@ -77,8 +69,12 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
       </View>
 
       <View style={styles.form}>
-        <View style={styles.inputContainer}>
-          <MaterialCommunityIcons name="account-plus-outline" size={20} color="#64748b" style={styles.inputIcon} />
+
+        <View style={[
+          styles.inputContainer,
+          focusedInput === 'username' && styles.inputFocused
+        ]}>
+          <MaterialCommunityIcons name="account-plus-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Choose Username"
@@ -86,11 +82,16 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
+            onFocus={() => setFocusedInput('username')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <MaterialCommunityIcons name="shield-key-outline" size={20} color="#64748b" style={styles.inputIcon} />
+        <View style={[
+          styles.inputContainer,
+          focusedInput === 'password' && styles.inputFocused
+        ]}>
+          <MaterialCommunityIcons name="shield-key-outline" size={20} color="#94a3b8" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
             placeholder="Secure Password"
@@ -98,6 +99,8 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
+            onFocus={() => setFocusedInput('password')}
+            onBlur={() => setFocusedInput(null)}
           />
           <TouchableOpacity 
             onPress={() => setShowPassword(!showPassword)} 
@@ -107,7 +110,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
             <MaterialCommunityIcons 
               name={showPassword ? "eye-off" : "eye"} 
               size={20} 
-              color="#64748b" 
+              color="#94a3b8"
             />
           </TouchableOpacity>
         </View>
@@ -136,6 +139,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
             Already linked? <Text style={styles.footerLink}>Establish Session</Text>
           </Text>
         </TouchableOpacity>
+
       </View>
     </KeyboardAvoidingView>
   );
@@ -176,7 +180,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: "#94a3b8",
     marginTop: 8,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -184,16 +188,25 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 16,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 24,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    borderColor: "rgba(255,255,255,0.15)",
     paddingHorizontal: 16,
     height: 60,
+  },
+  inputFocused: {
+    borderColor: "#818cf8",
+    borderWidth: 1.5,
   },
   eyeIcon: {
     marginLeft: 8,
@@ -234,7 +247,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   footerText: {
-    color: "#64748b",
+    color: "#94a3b8",
     fontSize: 14,
   },
   footerLink: {

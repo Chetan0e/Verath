@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import Button from '../../components/Button';
+import Input from '../../components/Input';
+import { validateAuthForm } from '../../utils/validation';
 import { motion } from 'framer-motion';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
-
 import {
   Brain,
   Search,
@@ -13,7 +15,6 @@ import {
   User,
 } from 'lucide-react';
 
-// ── Word-by-word animated heading ─────────────────────────────────────────
 const AnimatedHeading = ({ text, className }) => {
   const words = text.split(' ')
   const container = {
@@ -37,16 +38,13 @@ const AnimatedHeading = ({ text, className }) => {
     >
       {words.map((w, i) => (
         <span key={i} style={{ overflow: 'hidden', display: 'inline-block' }}>
-          <motion.span variants={word} style={{ display: 'inline-block' }}>
-            {w}
-          </motion.span>
+          <motion.span variants={word} style={{ display: 'inline-block' }}>{w}</motion.span>
         </span>
       ))}
     </motion.h1>
   )
 }
 
-// ── Subtitle fade-up ───────────────────────────────────────────────────────
 const AnimatedSubtitle = ({ text, className }) => (
   <motion.p
     initial={{ opacity: 0, y: 16 }}
@@ -65,6 +63,7 @@ const AuthLanding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname
     ? "http://127.0.0.1:8000"
@@ -72,6 +71,12 @@ const AuthLanding = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = validateAuthForm(username, password, isLogin);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     setError('');
     setSuccess('');
@@ -101,10 +106,7 @@ const AuthLanding = () => {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
-    }
+    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
   };
 
   const itemVariants = {
@@ -116,11 +118,10 @@ const AuthLanding = () => {
     <div className="relative min-h-screen bg-background overflow-x-hidden font-sans">
       <Navbar />
 
-      {/* Background Elements */}
       <div className="absolute inset-0 bg-mesh z-0" />
       <div className="bg-noise" />
 
-      {/* Grid squares — matches loading screen */}
+      {/* Grid squares */}
       <div className="absolute inset-0 z-0 pointer-events-none" style={{
         backgroundImage: `
           linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
@@ -128,12 +129,13 @@ const AuthLanding = () => {
         `,
         backgroundSize: '52px 52px',
       }} />
-      {/* Radial vignette over grid */}
+
+      {/* Radial vignette */}
       <div className="absolute inset-0 z-0 pointer-events-none" style={{
         background: 'radial-gradient(ellipse 85% 75% at 50% 40%, transparent 25%, rgba(5,7,20,0.88) 100%)'
       }} />
 
-      {/* Animated Glow Blobs */}
+      {/* Glow Blobs */}
       <motion.div
         animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
@@ -145,7 +147,7 @@ const AuthLanding = () => {
         className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-secondary rounded-full mix-blend-screen filter blur-[128px] opacity-20 z-0 pointer-events-none"
       />
 
-      {/* System Online Badge - Centered */}
+      {/* System Online Badge */}
       <div className="relative z-10 w-full flex justify-center pt-24 pb-2">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -158,7 +160,7 @@ const AuthLanding = () => {
         </motion.div>
       </div>
 
-      {/* Main Content Grid */}
+      {/* Main Grid */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 lg:py-12 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
         {/* Left Section */}
@@ -168,7 +170,6 @@ const AuthLanding = () => {
           animate="visible"
           className="flex flex-col space-y-10"
         >
-          {/* Hero Copy — animated heading + subtitle */}
           <div className="space-y-6">
             <AnimatedHeading
               text="Your intelligent digital memory."
@@ -220,7 +221,7 @@ const AuthLanding = () => {
           </motion.div>
         </motion.div>
 
-        {/* Right Section - Auth Card — UNTOUCHED */}
+        {/* Right Section - Auth Card */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0, y: [0, -2, 0] }}
@@ -233,13 +234,13 @@ const AuthLanding = () => {
             <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
                 <button
-                  onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
+                  onClick={() => { setIsLogin(true); setError(''); setSuccess(''); setFieldErrors({}); }}
                   className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                   Sign In
                 </button>
                 <button
-                  onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
+                  onClick={() => { setIsLogin(false); setError(''); setSuccess(''); setFieldErrors({}); }}
                   className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${!isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                   Register
@@ -259,43 +260,28 @@ const AuthLanding = () => {
                 {error && <div className="text-red-400 text-sm">{error}</div>}
                 {success && <div className="text-green-400 text-sm">{success}</div>}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-300 ml-1">
-                    {isLogin ? 'Username' : 'Choose a Username'}
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input
-                      type="text"
-                      placeholder={isLogin ? "username" : "creative_mind"}
-                      className="input-field pl-10"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+                <Input
+                  type="text"
+                  placeholder={isLogin ? "username" : "creative_mind"}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  icon={User}
+                  label={isLogin ? 'Username' : 'Choose a Username'}
+                  required
+                  error={fieldErrors.username}
+                />
 
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between ml-1">
-                    <label className="text-xs font-medium text-gray-300">
-                      {isLogin ? 'Password' : 'Create Password'}
-                    </label>
-                    {isLogin && <a href="#" className="text-xs text-primary hover:text-violet-400 transition-colors">Forgot password?</a>}
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input
-                      type="password"
-                      placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
-                      className="input-field pl-10"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={!isLogin ? 8 : undefined}
-                    />
-                  </div>
-                </div>
+                <Input
+                  type="password"
+                  placeholder={isLogin ? "••••••••" : "Min. 8 characters"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  icon={Lock}
+                  label={isLogin ? 'Password' : 'Create Password'}
+                  required
+                  minLength={!isLogin ? 8 : undefined}
+                  error={fieldErrors.password}
+                />
 
                 {isLogin && (
                   <div className="flex items-center gap-2 mt-2">
@@ -304,15 +290,10 @@ const AuthLanding = () => {
                   </div>
                 )}
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="btn-primary mt-6 disabled:opacity-50 transition-all duration-300 hover:shadow-[0_0_16px_rgba(139,92,246,0.22)] hover:-translate-y-0.5"
-                  disabled={loading}
-                >
-                  {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                <Button type="submit" loading={loading} className="mt-6">
+                  {isLogin ? 'Sign In' : 'Create Account'}
                   {!loading && <ArrowRight className="w-4 h-4" />}
-                </motion.button>
+                </Button>
               </form>
 
               <div className="mt-8 relative">
@@ -320,7 +301,9 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">Or continue with</span>
+                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">
+                    Or continue with
+                  </span>
                 </div>
               </div>
 
@@ -337,12 +320,9 @@ const AuthLanding = () => {
             </div>
           </div>
         </motion.div>
-
       </div>
 
-      {/* Footer - Outside Grid */}
       <Footer />
-
     </div>
   );
 };

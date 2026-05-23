@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import AuthLanding from './pages/Auth/AuthLanding'
 import LoadingScreen from './components/LoadingScreen'
+import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 const App = () => {
@@ -12,11 +13,9 @@ const App = () => {
     const fadeTimer = setTimeout(() => {
       setFadeOut(true)
     }, 2800)
-
     const loadTimer = setTimeout(() => {
       setLoading(false)
     }, 3200)
-
     return () => {
       clearTimeout(fadeTimer)
       clearTimeout(loadTimer)
@@ -24,7 +23,7 @@ const App = () => {
   }, [])
 
   return (
-    <>
+    <ErrorBoundary>
       {loading && (
         <div style={{
           position: 'fixed',
@@ -43,7 +42,7 @@ const App = () => {
       }}>
         <AuthLanding />
       </div>
-    </>
+    </ErrorBoundary>
   )
 }
 

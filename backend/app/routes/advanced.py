@@ -1,5 +1,4 @@
-import logging
-from datetime import datetime, date
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
@@ -7,8 +6,7 @@ from app.services.memory_store import get_memory_stats, all_memories
 from app.services.auth import get_current_user_id
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
-from app.core.cache import cached, add_cache_header, get_cache_stats, invalidate_cache
-from fastapi import Response
+from app.core.cache import cached, get_cache_stats, invalidate_cache
 
 router = APIRouter()
 

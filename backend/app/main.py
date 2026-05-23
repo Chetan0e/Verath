@@ -126,10 +126,13 @@ async def lifespan(app: FastAPI):
     from app.services.database import connect_to_mongo, close_mongo_connection
     await connect_to_mongo()
 
-    # 2. Start background worker queue
+    # 2. Rebuild missing ChromaDB collections from MongoDB
+    await warm_chroma_collections()
+
+    # 3. Start background worker queue
     start_worker()
 
-    # 3. Start reminder scheduler — runs check_and_fire_reminders every 15 min
+    # 4. Start reminder scheduler — runs check_and_fire_reminders every 15 min
     _scheduler.add_job(
         check_and_fire_reminders,
         trigger="interval",
@@ -222,19 +225,20 @@ async def status():
     except Exception as e:
         health_status["services"]["chromadb"] = f"unhealthy: {str(e)}"
 
-    # Check Groq
-    try:
-        from app.services.groq_service import client
-        response = await client.models.list()
-        if response:
+    # Check Groq (optional — skipped when no API key)
+    if settings.groq_api_key:
+        try:
+            from app.services.groq_service import client
+            await client.models.list()
             health_status["services"]["groq"] = "healthy"
-        else:
-            health_status["services"]["groq"] = "unhealthy"
-    except Exception as e:
-        health_status["services"]["groq"] = f"unhealthy: {str(e)}"
+        except Exception as e:
+            health_status["services"]["groq"] = f"unhealthy: {str(e)}"
+    else:
+        health_status["services"]["groq"] = "not_configured"
 
-    # Overall status
-    if all(v == "healthy" for v in health_status["services"].values()):
+    # Overall: core storage must be healthy; cloud LLM is optional
+    core_services = ("mongodb", "chromadb")
+    if all(health_status["services"].get(s) == "healthy" for s in core_services):
         health_status["overall"] = "healthy"
     else:
         health_status["overall"] = "degraded"

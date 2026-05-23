@@ -1,500 +1,765 @@
-# 🧠 Verath
+# Verath
 
-## AI-Powered Personal Memory System v3.0
+<p align="center">
+  <strong>AI-Powered Personal Memory System</strong><br>
+  Version 3.0.0 · Record · Extract · Search · Remember
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Groq](https://img.shields.io/badge/LLM-Groq-orange.svg)](https://groq.com/)
-[![Whisper](https://img.shields.io/badge/STT-Whisper-black.svg)](https://github.com/openai/whisper)
-[![React Native](https://img.shields.io/badge/Mobile-React%20Native-61DAFB.svg?style=flat&logo=react&logoColor=white)](https://reactnative.dev/)
-[![MongoDB](https://img.shields.io/badge/Database-MongoDB-47A248.svg?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/API-FastAPI-009688.svg?style=flat&logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/Web-React%2019-61DAFB.svg?style=flat&logo=react&logoColor=white" alt="React"></a>
+  <a href="https://expo.dev/"><img src="https://img.shields.io/badge/Mobile-Expo-000020.svg?style=flat&logo=expo&logoColor=white" alt="Expo"></a>
+</p>
 
 ---
 
-## 📖 Overview
+## Table of contents
 
-# Verath
+1. [Overview](#overview)
+2. [What makes Verath different](#what-makes-verath-different)
+3. [Features](#features)
+4. [Architecture](#architecture)
+5. [Data pipelines](#data-pipelines)
+6. [Tech stack](#tech-stack)
+7. [Project structure](#project-structure)
+8. [Installation & setup](#installation--setup)
+9. [Configuration reference](#configuration-reference)
+10. [Running the application](#running-the-application)
+11. [Clients: Web & Mobile](#clients-web--mobile)
+12. [API reference](#api-reference)
+13. [Authentication](#authentication)
+14. [Memory model & lifecycle](#memory-model--lifecycle)
+15. [Background worker & task queue](#background-worker--task-queue)
+16. [Testing](#testing)
+17. [Docker & deployment](#docker--deployment)
+18. [Security](#security)
+19. [Performance](#performance)
+20. [Troubleshooting](#troubleshooting)
+21. [Roadmap](#roadmap)
+22. [Contributing](#contributing)
+23. [License & acknowledgments](#license--acknowledgments)
 
-**AI-Powered Personal Memory System**
+---
 
-Verath is your intelligent companion that records, summarizes, and indexes your conversations, meetings, and thoughts. It automatically extracts key entities, dates, and insights, making your personal knowledge searchable and actionable.
+## Overview
 
-## Quick Start (60 seconds)
+Verath is an intelligent personal memory system. You record voice notes, meetings, or thoughts; the backend transcribes audio, extracts structured metadata (intent, entities, dates, importance), stores everything in **MongoDB** (documents) and **ChromaDB** (vectors), and lets you query your history in natural language using **retrieval-augmented generation (RAG)** with cross-encoder re-ranking.
+
+### Typical user journey
+
+1. **Capture** — Speak into the mobile app, use the web dashboard, hit `POST /record`, or run the CLI.
+2. **Process** — Whisper transcribes locally; the memory extractor cleans text, detects corrections, classifies intent, and scores importance.
+3. **Store** — Each memory gets a UUID, Gemini embedding, MongoDB document, and ChromaDB vector (per-user collection).
+4. **Recall** — Ask “What meetings did I have this week?”; the query engine retrieves 20 candidates, re-ranks to top 5, and Groq/Gemini answers from your data only.
+5. **Act** — Reminders fire for dated meetings/deadlines; export or delete memories; view timeline, graph, and insights.
+
+### Who it is for
+
+| Audience | Use case |
+|----------|----------|
+| Students | Lecture capture and Q&A over course material |
+| Professionals | Meeting notes, deadlines, action items |
+| Researchers | Idea logging and thematic search |
+| Writers | Voice memos retrieved by topic or date |
+| Anyone | Searchable, private long-term memory |
+
+---
+
+## What makes Verath different
+
+- **Speech correction handling** — Detects phrases like “meet tomorrow… no, Monday” and uses the corrected meaning.
+- **Dual storage** — Full documents in MongoDB; semantic search in ChromaDB with per-user isolation.
+- **Grounded answers** — RAG prompts restrict the LLM to retrieved memories; sources and confidence scores are returned.
+- **Cross-encoder re-ranking** — Vector search alone is widened to 20 hits, then re-ranked for relevance before the LLM sees context.
+- **Resilient vectors** — On startup, missing Chroma collections are rebuilt from MongoDB embeddings.
+- **Production-oriented auth** — JWT access + refresh rotation, logout blacklist, rate limits, audit logs.
+- **Async processing** — Long recordings can be queued with retries and a dead-letter queue.
+
+---
+
+## Features
+
+### Memory & intelligence (v3.0)
+
+| Feature | Description |
+|---------|-------------|
+| Speech correction detection | Parses self-corrections in transcripts |
+| Intent classification | `meeting`, `deadline`, `task`, `commitment`, `reminder`, etc. |
+| Entity extraction | Dates, people, locations, organizations via NLP + `dateparser` |
+| Importance scoring | Intent-based boosts for deadlines and meetings |
+| Hybrid RAG query | Vector retrieval → cross-encoder re-rank → LLM answer |
+| Paginated timeline | Today’s memories with `page` / `page_size` |
+| Daily summary & insights | LLM-generated briefings and patterns |
+| Memory graph | Nodes and edges for visualization (`GET /graph`) |
+| Export | JSON or CSV with optional intent and date filters |
+| Delete memory | Removes from MongoDB and ChromaDB atomically |
+
+### Platform & operations
+
+| Feature | Description |
+|---------|-------------|
+| JWT authentication | Signup, login, refresh rotation, logout blacklist |
+| Rate limiting | Signup 5/min, login 10/min, refresh 20/min (per IP) |
+| WebSocket | `/ws/updates?token=` for live updates and ping/pong |
+| Background worker | Recording jobs, compression, retries (2s → 4s → 8s) |
+| Dead-letter queue | Failed tasks inspectable and manually retried |
+| Reminder scheduler | APScheduler every 15 minutes |
+| Privacy mode | Per-user toggle pauses capture/processing |
+| Response caching | Summary, insights, stats, graph (TTL 5–15 min) |
+| Health endpoint | MongoDB, ChromaDB, optional Groq status |
+| Speaker profiles | Train and list voice labels (optional diarization stack) |
+
+### Audio & input
+
+| Endpoint / tool | Description |
+|-----------------|-------------|
+| `POST /record` | Server-side microphone capture + pipeline |
+| `POST /record/upload` | Mobile multipart audio upload |
+| `POST /record/session` | Session-typed recording via background queue |
+| `POST /extract` | Text-only extraction without storing |
+| `POST /validate` | Noise, length, duplicate checks |
+| `scripts/record_cli.py` | Terminal recording utility |
+
+---
+
+## Architecture
+
+### System diagram
+
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    M[Mobile · Expo]
+    W[Web · React + Legacy Dashboard]
+    C[CLI · record_cli.py]
+  end
+
+  subgraph api [FastAPI 3.0]
+    AUTH[Auth + Rate Limit]
+    REC[Record / Upload]
+    QRY[Query Engine · RAG]
+    ADV[Summary · Timeline · Export]
+    WRK[Background Worker]
+    REM[Reminder Scheduler]
+  end
+
+  subgraph storage [Storage]
+    MG[(MongoDB)]
+    CH[(ChromaDB · per user)]
+  end
+
+  subgraph ai [AI Layer]
+    WH[faster-whisper · local]
+    GQ[Groq LLM]
+    GM[Gemini LLM / Embeddings]
+    CE[Cross-encoder reranker]
+  end
+
+  M --> AUTH
+  W --> AUTH
+  C --> REC
+  AUTH --> REC
+  REC --> WH
+  REC --> WRK
+  WRK --> MG
+  WRK --> CH
+  QRY --> CH
+  QRY --> CE
+  QRY --> GQ
+  ADV --> MG
+  REM --> MG
+```
+
+### Component responsibilities
+
+| Layer | Path | Role |
+|-------|------|------|
+| Routes | `backend/app/routes/` | HTTP/WebSocket handlers, auth dependencies |
+| Services | `backend/app/services/` | Business logic: store, query, auth, reminders |
+| Pipeline | `backend/app/pipeline/` | Audio sessions, extraction, validation |
+| Workers | `backend/app/workers/` | Async queue, retries, dead-letter |
+| Core | `backend/app/core/` | Logging, cache, validators, exceptions |
+| Models | `backend/app/models/` | Pydantic schemas |
+| DB | `backend/app/db/` | Memory lifecycle promotion/archival |
+
+### MongoDB collections (typical)
+
+| Collection | Purpose |
+|------------|---------|
+| `memories` | Full memory documents + embeddings |
+| `users` | Hashed credentials |
+| `refresh_tokens` | Rotating refresh token store |
+| `blacklisted_tokens` | Logged-out JWT `jti` values |
+| `audit_logs` | Auth event trail |
+| `tasks` / dead-letter | Background job tracking |
+| `alerts` | Reminder notifications |
+
+---
+
+## Data pipelines
+
+### Ingestion pipeline (audio → memory)
+
+```
+Audio (WAV, 16 kHz mono)
+    ↓
+faster-whisper (WHISPER_MODEL)
+    ↓
+Text cleaning (fillers removed)
+    ↓
+Correction detection
+    ↓
+Intent + entity extraction
+    ↓
+Importance scoring + summary (LLM)
+    ↓
+Gemini embedding (text-embedding-004)
+    ↓
+MongoDB insert + ChromaDB upsert (per-user collection)
+```
+
+### Query pipeline (question → answer)
+
+```
+User question
+    ↓
+Query embedding (same provider as memories)
+    ↓
+ChromaDB similarity search (top 20 candidates)
+    ↓
+Metadata filter (intent, min_importance, user_id)
+    ↓
+Cross-encoder re-ranking (top 5)
+    ↓
+Context block built for LLM
+    ↓
+Groq / Gemini generation (grounded prompt)
+    ↓
+Response: answer + context[] + sources[] + confidence_score
+```
+
+Constants in `query_engine.py`: `_N_RETRIEVE = 20`, `_N_FINAL = 5`.
+
+---
+
+## Tech stack
+
+### Backend
+
+| Category | Technology |
+|----------|------------|
+| Framework | FastAPI, Uvicorn |
+| Validation | Pydantic 2.x, pydantic-settings |
+| Speech | faster-whisper |
+| LLM | Groq (default `llama-3.1-8b-instant`, fallback `llama-3.3-70b-versatile` in queries) |
+| Embeddings | Google Gemini `text-embedding-004` |
+| Vector DB | ChromaDB 0.5+ (HNSW, cosine) |
+| Document DB | MongoDB via Motor (async) |
+| Re-ranking | sentence-transformers cross-encoder |
+| Scheduler | APScheduler (reminders) |
+| Auth | python-jose, bcrypt, slowapi |
+| Audio I/O | sounddevice |
+| Optional | pyannote.audio (speaker diarization) |
+
+### Web
+
+| Category | Technology |
+|----------|------------|
+| Auth shell | React 19, Vite 8, Tailwind CSS, Framer Motion |
+| Dashboard | Legacy HTML/CSS/JS in `web/legacy/` |
+| Icons | Lucide React |
+
+### Mobile
+
+| Category | Technology |
+|----------|------------|
+| Framework | React Native 0.72, Expo 49 |
+| Navigation | React Navigation (bottom tabs) |
+| HTTP | Axios |
+| Offline | AsyncStorage queue (`offlineQueue.js`) |
+| Audio | expo-av |
+
+### Infrastructure
+
+| Tool | Use |
+|------|-----|
+| Docker | Multi-stage Python 3.11 image |
+| docker-compose | MongoDB + backend |
+| GitHub Actions | Ruff + pytest + Codecov |
+| Makefile | `dev`, `test`, `lint`, `docker`, `migrate` |
+
+---
+
+## Project structure
+
+```
+Verath/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                 # FastAPI app, lifespan, /status
+│   │   ├── config.py               # Environment settings
+│   │   ├── core/                   # cache, exceptions, logging, validators
+│   │   ├── db/
+│   │   │   └── memory_lifecycle.py # short → long → archived
+│   │   ├── models/
+│   │   │   ├── memory.py
+│   │   │   └── schema.py           # API request/response models
+│   │   ├── pipeline/
+│   │   │   ├── audio_processor.py
+│   │   │   ├── extraction_pipeline.py
+│   │   │   └── data_validator.py
+│   │   ├── routes/
+│   │   │   ├── auth.py             # /auth/*
+│   │   │   ├── record.py           # /record, /record/upload
+│   │   │   ├── query.py            # /query
+│   │   │   ├── advanced.py         # summary, timeline, export, graph
+│   │   │   ├── memories.py         # DELETE /memory/{id}
+│   │   │   ├── pipeline_routes.py  # /record/session, /extract, /queue/*
+│   │   │   ├── reminders.py        # /reminders/*
+│   │   │   ├── privacy.py          # /privacy/*
+│   │   │   ├── speaker.py
+│   │   │   └── websocket.py        # /ws/updates
+│   │   ├── services/               # memory_store, query_engine, auth, etc.
+│   │   └── workers/
+│   │       ├── background_worker.py
+│   │       └── task_queue.py
+│   ├── tests/                      # pytest suite (12 modules)
+│   ├── requirements.txt
+│   ├── run.py                      # Dev entry: uvicorn
+│   └── pytest.ini
+├── web/
+│   ├── src/                        # React auth landing
+│   │   ├── pages/Auth/AuthLanding.jsx
+│   │   ├── components/             # Button, Input, ErrorBoundary
+│   │   └── utils/validation.js
+│   ├── legacy/                     # Full dashboard (post-login)
+│   │   ├── dashboard.html
+│   │   ├── app.js, styles.css
+│   └── vite.config.js
+├── mobile/
+│   ├── screens/                    # Home, Ask, Timeline, Settings, Auth
+│   ├── components/                 # MicButton, MemoryCard
+│   └── services/                   # api.js, auth.js, offlineQueue.js
+├── scripts/
+│   └── record_cli.py
+├── data/                           # chroma_db, uploads (gitignored)
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── Makefile
+├── ruff.toml
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md
+```
+
+---
+
+## Installation & setup
+
+### Prerequisites
+
+| Requirement | Notes |
+|-------------|-------|
+| Python 3.11+ | Backend runtime |
+| Node.js 18+ | Web and mobile tooling |
+| MongoDB 6.0+ | Local Docker or Atlas |
+| FFmpeg | Required for audio (Dockerfile installs it) |
+| Groq API key | Recommended for LLM |
+| Gemini API key | Recommended for embeddings (and LLM fallback) |
+
+### Step 1 — Clone and environment
 
 ```bash
 git clone https://github.com/yourusername/Verath.git
 cd Verath
-cp .env.example .env  # Edit MONGO_URI and SECRET_KEY
-docker-compose up -d
+cp .env.example .env
+```
 
-# Start Frontend (React + Vite)
+Generate a secure `SECRET_KEY`:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Minimum `.env` values:
+
+```env
+MONGO_URI=mongodb://localhost:27017
+DATABASE_NAME=verath
+SECRET_KEY=<your-64-char-hex-or-long-random-string>
+GROQ_API_KEY=<from console.groq.com>
+GEMINI_API_KEY=<from aistudio.google.com>
+```
+
+### Step 2 — MongoDB
+
+**Docker (recommended for local dev):**
+
+```bash
+docker-compose up -d mongodb
+```
+
+**MongoDB Atlas:**
+
+1. Create a free cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas).
+2. Whitelist your IP.
+3. Copy the connection string into `MONGO_URI`.
+
+### Step 3 — Backend dependencies
+
+```bash
+cd backend
+python -m venv venv
+
+# Windows PowerShell
+.\venv\Scripts\Activate.ps1
+
+# macOS / Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+Create indexes (optional but recommended):
+
+```bash
+cd ..
+make migrate
+```
+
+### Step 4 — Start backend
+
+```bash
+cd backend
+python run.py
+```
+
+| URL | Purpose |
+|-----|---------|
+| http://localhost:8000 | API root |
+| http://localhost:8000/docs | Swagger UI |
+| http://localhost:8000/redoc | ReDoc |
+| http://localhost:8000/status | Health check |
+
+### Step 5 — Web client
+
+```bash
 cd web
 npm install
 npm run dev
-# App will run on http://localhost:5173
 ```
 
-Verath is an AI-powered personal memory system that transforms raw audio and text into structured, searchable memories that you can query naturally—like asking your own brain for information. It combines advanced speech recognition, intelligent NLP extraction, vector embeddings, and retrieval-augmented generation (RAG) to create a comprehensive digital memory assistant.
+Open http://localhost:5173 — after login you are redirected to `web/legacy/dashboard.html`.
 
-### Core Capabilities
+Production build:
 
-- **Intelligent Memory Extraction** with speech correction detection, temporal parsing, and entity extraction
-- **Hybrid RAG (Retrieval-Augmented Generation)** with cross-encoder re-ranking for accurate, grounded responses
-- **Memory Lifecycle Management** with automatic compression, archival, and retrieval optimization
-- **Multi-Platform Support** including mobile (React Native) and web dashboards
-- **Local-First Privacy** with Groq/Gemini running locally—no data leaves your machine by default
-- **Reminder System** with automatic date extraction and alert scheduling
-- **Background Processing** with async task queue, retry logic, and dead-letter handling
-- **Speaker Identification** with voice profile training and diarization
+```bash
+npm run build
+npm run preview
+```
 
-### Use Cases
+### Step 6 — Mobile (optional)
 
-- **Students**: Record lectures and ask questions about course material
-- **Professionals**: Track meeting notes, action items, and project discussions
-- **Researchers**: Capture thoughts, find connections, and generate insights
-- **Writers**: Record ideas and retrieve them by theme or context
-- **Anyone**: Never forget important conversations, commitments, or insights
+Edit `mobile/services/api.js`:
+
+```javascript
+const BASE_URL = "http://192.168.1.XXX:8000";  // your LAN IP, not localhost on device
+```
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+### Makefile commands
+
+| Command | Description |
+|---------|-------------|
+| `make help` | List all targets |
+| `make dev` | `uvicorn app.main:app --reload` on port 8000 |
+| `make test` | pytest with HTML coverage report |
+| `make e2e` | Run `tests/test_e2e.py` |
+| `make lint` | Ruff + Black check on `backend/app` |
+| `make docker` | `docker-compose up --build` |
+| `make migrate` | MongoDB index setup |
+| `make clean` | Remove caches and coverage artifacts |
 
 ---
 
-## 📋 Table of Contents
+## Configuration reference
 
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [File Structure](#file-structure)
-- [Backend Architecture](#backend-architecture)
-- [API Endpoints](#api-endpoints)
-- [Frontend Applications](#frontend-applications)
-- [Setup Instructions](#setup-instructions)
-- [Configuration](#configuration)
-- [Development](#development)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+All settings are loaded from the repo-root `.env` via `backend/app/config.py` (Pydantic Settings).
 
----
+### Required
 
-## 🏗️ Architecture
+| Variable | Description |
+|----------|-------------|
+| `MONGO_URI` | Must start with `mongodb://` or `mongodb+srv://` |
+| `SECRET_KEY` | Min 32 characters; rejects known weak defaults |
 
-### System Architecture
+### LLM & embeddings
 
-Verath follows a microservices-inspired architecture with three main components:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GROQ_API_KEY` | — | Groq console API key |
+| `GEMINI_API_KEY` | — | Google AI Studio key |
+| `LLM_PROVIDER` | `groq` | Primary LLM: `groq` or `gemini` |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Groq chat model |
+| `GEMINI_MODEL` | `gemini-1.5-flash` | Gemini chat model |
+| `EMBED_PROVIDER` | `gemini` | Embedding backend |
+| `LLM_TIMEOUT` | `30` | Request timeout (seconds) |
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Mobile App    │     │   Web App       │     │   CLI Tools     │
-│  (React Native) │     │  (HTML/JS/CSS)  │     │   (Python)      │
-└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │   FastAPI Backend      │
-                    │   (Python 3.11+)        │
-                    └────────────┬────────────┘
-                                 │
-         ┌───────────────────────┼───────────────────────┐
-         │                       │                       │
-    ┌────▼────┐           ┌─────▼─────┐          ┌──────▼──────┐
-    │ MongoDB │           │ ChromaDB  │          │   Groq      │
-    │ (Metadata)│         │ (Vectors) │          │  (LLM+Embed)│
-    └─────────┘           └───────────┘          └─────────────┘
-```
+### Whisper (local STT)
 
-### Data Flow
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHISPER_MODEL` | `base` | `tiny` · `base` · `small` · `medium` · `large` |
+| `WHISPER_DEVICE` | `cpu` | `cpu` or `cuda` |
+| `WHISPER_COMPUTE_TYPE` | `int8` | Quantization for faster-whisper |
 
-1. **Recording**: Audio → Whisper Transcription → Text Cleaning
-2. **Extraction**: Text → Memory Extractor → Intent/Entities/Summary/Correction Detection
-3. **Storage**: Memory → MongoDB (documents) + ChromaDB (vectors with embeddings)
-4. **Query**: Question → Embedding → Vector Search → Cross-Encoder Re-ranking → LLM Answer
+| Model | Size (approx.) | Speed | Accuracy |
+|-------|----------------|-------|----------|
+| tiny | ~70 MB | Fastest | Lowest |
+| base | ~140 MB | Balanced | Good (default) |
+| small | ~460 MB | Slower | Better |
+| medium | ~1.5 GB | Slow | High |
+| large | ~3 GB | Slowest | Best |
 
-### Processing Pipeline
+### Server & security
 
-```
-Audio Input
-    ↓
-Whisper STT (faster-whisper)
-    ↓
-Text Cleaning (remove fillers, normalize)
-    ↓
-Correction Detection (detect "no wait actually")
-    ↓
-Intent Classification (meeting, deadline, task, etc.)
-    ↓
-Entity Extraction (dates, people, locations)
-    ↓
-Importance Scoring (with intent-based boosting)
-    ↓
-Summary Generation (LLM-powered)
-    ↓
-Embedding Generation (Gemini text-embedding-004)
-    ↓
-Dual Storage (MongoDB + ChromaDB)
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `8000` | API port (1024–65535) |
+| `ENV` | `development` | `production` restricts CORS to `ALLOW_CORS` |
+| `ALLOW_CORS` | `*` | Comma-separated origins in production |
+| `DEFAULT_RECORD_SECONDS` | `10` | Default mic duration |
 
-### Query Pipeline
+### Storage paths
 
-```
-User Question
-    ↓
-Embedding Generation
-    ↓
-Vector Search (ChromaDB, retrieve 20 candidates)
-    ↓
-Metadata Filtering (intent, importance, user)
-    ↓
-Cross-Encoder Re-ranking (select top 5)
-    ↓
-Context Building (format for LLM)
-    ↓
-LLM Generation (Groq llama-3.3-70b-versatile)
-    ↓
-Answer + Sources + Confidence
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VECTOR_DB_PATH` | `data/chroma_db` | Chroma persistence directory |
+| `VOICE_DB_PATH` | `data/voices.pkl` | Speaker profile pickle |
+| `DATABASE_NAME` | `verath` | MongoDB database name |
+
+### Audio processing
+
+| Variable | Default |
+|----------|---------|
+| `AUDIO_SAMPLE_RATE` | `16000` |
+| `AUDIO_CHANNELS` | `1` |
+| `AUDIO_FORMAT` | `int16` |
+| `MAX_AUDIO_CHUNK_SIZE` | `30` |
+| `SILENCE_THRESHOLD` | `0.01` |
+| `MIN_TRANSCRIPTION_LENGTH` | `5` |
+
+### Memory thresholds
+
+| Variable | Default |
+|----------|---------|
+| `MAX_MEMORY_RESULTS` | `100` |
+| `MEMORY_IMPORTANCE_THRESHOLD` | `0.6` |
+
+### Privacy & data flow
+
+- **Whisper** runs on your machine — raw audio is not sent to Groq/Gemini for transcription.
+- **LLM and embeddings** call cloud APIs when keys are configured.
+- Set `ENV=production` and narrow `ALLOW_CORS` before public deployment.
+- Never commit `.env` or API keys.
+
+Full template: [.env.example](.env.example).
 
 ---
 
-## 💻 Tech Stack
+## Running the application
 
-### Backend
+### Development workflow
 
-- **Framework**: FastAPI 0.104+ with Uvicorn
-- **Speech Recognition**: faster-whisper (Whisper models: tiny, base, small, medium, large)
-- **LLM**: Groq (llama-3.3-70b), **Embeddings**: Gemini (text-embedding-004)
-- **Vector Database**: ChromaDB 0.4.22 with HNSW indexing
-- **Document Database**: MongoDB with Motor (async driver)
-- **Task Queue**: AsyncIO queue with MongoDB-backed tracking
-- **Scheduler**: APScheduler for reminder checks (15-min intervals)
-- **Authentication**: JWT with python-jose and passlib[bcrypt]
-- **Data Validation**: Pydantic 2.5+ with custom validators
-- **Audio Processing**: sounddevice
-- **Speaker Diarization**: pyannote.audio (optional)
-- **Temporal Parsing**: dateparser
-- **Retry Logic**: tenacity with exponential backoff
+```bash
+# Terminal 1 — API
+make dev
 
-### Mobile
+# Terminal 2 — Web
+cd web && npm run dev
 
-- **Framework**: React Native with Expo
-- **Navigation**: React Navigation
-- **Storage**: AsyncStorage
-- **HTTP**: Axios
-- **UI Components**: Expo Vector Icons, Linear Gradient
-- **Authentication**: Context API with AsyncStorage
+# Terminal 3 — Mobile (optional)
+cd mobile && npx expo start
+```
 
-### Web
+### Always-on listener (optional)
 
-- **Frontend**: Vanilla HTML5, CSS3, JavaScript (ES6+)
-- **Icons**: Font Awesome 6.4.0
-- **Styling**: Custom CSS with dark theme and glassmorphism
-- **No Framework**: Lightweight, dependency-free
+```bash
+cd backend
+python run_listener.py
+```
 
-### Infrastructure
+Runs the voice listener service for continuous capture (see `app/services/listener.py`).
 
-- **Containerization**: Docker + Docker Compose
-- **Python Version**: 3.11-slim
-- **Database**: MongoDB (Docker or Atlas)
-- **Reverse Proxy**: (Optional) Nginx/Caddy
+### CLI recording
+
+```bash
+python scripts/record_cli.py --duration 15
+```
+
+Requires a running backend and valid auth token in environment or config as implemented in the script.
 
 ---
 
-## 📁 File Structure
+## Clients: Web & Mobile
 
-```
-Verath/
-├── backend/                          # FastAPI Backend (Python)
-│   ├── app/
-│   │   ├── core/                     # Core utilities
-│   │   │   ├── exceptions.py         # Custom exception system
-│   │   │   ├── logging_config.py     # Structured logging with rotation
-│   │   │   └── validators.py         # Input validation functions
-│   │   ├── db/                       # Database operations
-│   │   │   └── memory_lifecycle.py   # Memory lifecycle management
-│   │   ├── models/                   # Pydantic data models
-│   │   │   ├── memory.py             # Enhanced memory schema
-│   │   │   └── schema.py             # API request/response schemas
-│   │   ├── pipeline/                 # Processing pipeline
-│   │   │   ├── audio_processor.py    # Session-based recording
-│   │   │   ├── extraction_pipeline.py # Hybrid extraction pipeline
-│   │   │   └── data_validator.py     # Validation & filtering
-│   │   ├── workers/                  # Background workers
-│   │   │   └── background_worker.py  # Async task processing with retry
-│   │   ├── routes/                   # API endpoints
-│   │   │   ├── auth.py               # Authentication (signup, login, refresh)
-│   │   │   ├── query.py              # Query with RAG
-│   │   │   ├── record.py             # Audio recording endpoint
-│   │   │   ├── advanced.py           # Summary, timeline, insights, statistics
-│   │   │   ├── speaker.py            # Speaker management
-│   │   │   ├── privacy.py            # Privacy controls
-│   │   │   ├── pipeline_routes.py    # Pipeline operations
-│   │   │   └── reminders.py          # Reminder system endpoints
-│   │   ├── services/                 # Business logic
-│   │   │   ├── audio.py              # Audio recording
-│   │   │   ├── auth.py               # Authentication service
-│   │   │   ├── database.py           # Database operations
-│   │   │   ├── gemini_embedding.py   # Vector embeddings (Gemini)
-│   │   │   ├── importance.py         # Importance scoring
-│   │   │   ├── listener.py           # Always-on voice listener
-│   │   │   ├── groq_service.py       # Groq integration
-│   │   │   ├── memory_extractor.py   # Intelligent extraction with corrections
-│   │   │   ├── memory_graph.py       # Memory relationship graph
-│   │   │   ├── memory_store.py       # MongoDB + ChromaDB storage
-│   │   │   ├── pipeline.py           # Processing pipeline orchestration
-│   │   │   ├── privacy.py            # Privacy controls
-│   │   │   ├── query_engine.py       # RAG query engine with re-ranking
-│   │   │   ├── reminder_service.py   # Reminder detection and alerting
-│   │   │   ├── reranker.py           # Cross-encoder re-ranking
-│   │   │   ├── speaker.py            # Speaker identification
-│   │   │   ├── speaker_training.py   # Voice profile training
-│   │   │   ├── summarizer.py         # Daily summary generation
-│   │   │   ├── timeline.py           # Timeline generation
-│   │   │   └── transcription.py      # Whisper STT (faster-whisper)
-│   │   ├── utils/                    # Helper utilities
-│   │   │   └── helpers.py            # Utility functions
-│   │   ├── config.py                 # Configuration with Pydantic Settings
-│   │   └── main.py                   # FastAPI application with lifespan
-│   ├── logs/                         # Application logs with rotation
-│   ├── requirements.txt              # Python dependencies
-│   ├── run.py                        # Development server entry point
-│   ├── run_listener.py               # Always-on listener entry point
-│   ├── test_production.py             # Production tests
-│   └── test_system.py                # System tests
-├── mobile/                           # React Native Mobile App
-│   ├── screens/
-│   │   ├── AskScreen.js              # Main chat interface with voice
-│   │   ├── HomeScreen.js             # Dashboard with stats
-│   │   ├── TimelineScreen.js         # Timeline view
-│   │   ├── SettingsScreen.js         # Settings configuration
-│   │   ├── LoginScreen.js            # Authentication
-│   │   ├── RegisterScreen.js         # Registration
-│   │   └── Tabs.js                   # Tab navigation
-│   ├── components/
-│   │   ├── MicButton.js              # Microphone button component
-│   │   └── MemoryCard.js             # Memory display card
-│   ├── services/
-│   │   ├── api.js                    # API integration layer
-│   │   └── auth.js                   # Auth context and service
-│   ├── App.js                        # Root component with auth flow
-│   ├── app.json                      # Expo configuration
-│   ├── babel.config.js               # Babel configuration
-│   ├── index.js                      # Entry point
-│   ├── metro.config.js               # Metro bundler config
-│   └── package.json                  # Dependencies
-├── web/                              # Web Dashboard
-│   ├── index.html                    # Main dashboard
-│   ├── app.js                        # Dashboard logic
-│   ├── styles.css                    # Dashboard styles
-│   ├── auth.html                     # Authentication page
-│   ├── auth.js                       # Auth logic
-│   ├── auth.css                      # Auth styles
-│   └── package.json                  # Dependencies
-├── data/                             # Data storage
-│   ├── chroma/                       # ChromaDB vector storage
-│   └── vector_db/                    # Additional vector storage
-├── scripts/                          # Utility scripts
-│   └── record_cli.py                 # CLI recording tool
-├── .env.example                      # Environment template
-├── .gitignore                        # Git ignore rules
-├── Dockerfile                        # Docker configuration
-├── docker-compose.yml                # Docker Compose setup
-├── README.md                         # This file
-├── SETUP.md                          # Detailed setup guide
-├── UPGRADE_GUIDE_v3.md               # v3.0 upgrade guide
-├── PRODUCTION_AUDIT_FIXES.md         # Production security fixes
-└── REFACTORING_SUMMARY.md            # v2.0 refactoring summary
-```
+### Web — React auth + legacy dashboard
+
+| Part | Path | Description |
+|------|------|-------------|
+| Auth landing | `web/src/pages/Auth/AuthLanding.jsx` | Login/signup with validation, Framer Motion UI |
+| Validation | `web/src/utils/validation.js` | Username (3–30, alphanumeric `_`) and password rules |
+| Dashboard | `web/legacy/dashboard.html` | Stats, timeline, query, insights after auth |
+| API base | Auto-detected | `127.0.0.1:8000` on localhost; else hostname:8000 |
+
+Tokens are stored in `localStorage` as `verath_token` and `verath_username`.
+
+### Mobile — Expo app
+
+| Screen | File | Purpose |
+|--------|------|---------|
+| Login / Register | `LoginScreen.js`, `RegisterScreen.js` | JWT auth |
+| Home | `HomeScreen.js` | Stats and neural core status |
+| Ask | `AskScreen.js` | Chat-style RAG queries + voice |
+| Timeline | `TimelineScreen.js` | Chronological memories |
+| Settings | `SettingsScreen.js` | API URL, preferences |
+| Tabs | `Tabs.js` | Bottom navigation |
+
+**Offline queue:** Failed API calls are stored in AsyncStorage and retried when the network returns (`mobile/services/offlineQueue.js`).
+
+**Audio upload:** Recordings can be sent via `POST /record/upload` as multipart form data.
 
 ---
 
-## 🔧 Backend Architecture
+## API reference
 
-### Core Components
+**Base URL:** `http://localhost:8000`
 
-#### 1. Intelligent Memory Extractor
+**Auth header (protected routes):**
 
-Located in `backend/app/services/memory_extractor.py`, this component performs:
-
-- **Correction Detection**: Identifies speech corrections like "meet tomorrow... no, day after tomorrow"
-- **Intent Classification**: Categorizes memories into meeting, deadline, task, commitment, reminder
-- **Entity Extraction**: Extracts dates, people, locations, organizations
-- **Text Cleaning**: Removes filler words (um, uh, like) and normalizes
-- **Summary Generation**: Creates concise summaries using LLM
-- **Importance Boosting**: Calculates importance based on intent and entities
-
-**Example Flow**:
-```python
-Input: "I need to submit the project by next Friday... actually Monday"
-↓
-Correction Detected: True
-↓
-Final Text: "I need to submit the project by Monday"
-↓
-Intent: deadline
-↓
-Entities: {dates: ["Monday"]}
-↓
-Importance Boost: 0.3 (deadline intent)
-↓
-Summary: "Project submission deadline is Monday"
+```http
+Authorization: Bearer <access_token>
 ```
 
-#### 2. RAG Query Engine
-
-Located in `backend/app/services/query_engine.py`, implements:
-
-- **Broad Retrieval**: Fetches 20 candidates from ChromaDB
-- **Metadata Filtering**: Filters by intent, importance, user
-- **Cross-Encoder Re-ranking**: Re-ranks using neural model for better relevance
-- **Context Building**: Formats top results for LLM
-- **Grounded Generation**: LLM answers only from provided context
-- **Source Attribution**: Returns sources with confidence scores
-
-**Configuration**:
-```python
-_N_RETRIEVE = 20  # Candidates from vector search
-_N_FINAL = 5      # Final results after re-ranking
-```
-
-#### 3. Background Worker
-
-Located in `backend/app/workers/background_worker.py`, provides:
-
-- **Async Task Queue**: Non-blocking task processing
-- **Retry Logic**: Exponential backoff (2s, 4s, 8s)
-- **Task Tracking**: MongoDB-backed status tracking
-- **Dead Letter Queue**: Failed tasks for manual retry
-- **Status Polling**: Check task status via API
-
-**Task States**: `pending` → `processing` → `completed`/`failed`/`dead`
-
-#### 4. Reminder Service
-
-Located in `backend/app/services/reminder_service.py`, features:
-
-- **Automatic Detection**: Scans for dates in alertable intents
-- **Alertable Intents**: meeting, deadline, reminder, commitment
-- **Scheduled Checks**: Runs every 15 minutes via APScheduler
-- **Deduplication**: Prevents duplicate alerts
-- **Acknowledgment**: Mark reminders as read
-- **Lookahead Window**: Configurable (default 24 hours)
-
-#### 5. Memory Store
-
-Located in `backend/app/services/memory_store.py`, handles:
-
-- **Dual Storage**: MongoDB (documents) + ChromaDB (vectors)
-- **Per-User Collections**: Isolated data by user ID
-- **Vector Search**: Cosine similarity with HNSW indexing
-- **Lifecycle Management**: Update memory stages
-- **Statistics**: Aggregate counts by lifecycle, intent, speaker
-
-### API Routes
-
-#### Authentication (`/auth`)
-- `POST /signup` - Create new user
-- `POST /login` - Authenticate and get tokens
-- `POST /refresh` - Refresh access token
-
-#### Memory (`/record`, `/query`)
-- `POST /record` - Record and process audio
-- `GET /query` - Query memories with RAG
-
-#### Advanced (`/summary`, `/timeline`, `/insights`, `/statistics`)
-- `GET /summary` - Generate daily summary
-- `GET /timeline` - Get chronological timeline
-- `GET /insights` - Extract key insights
-- `GET /statistics` - Get memory statistics
-
-#### Pipeline (`/pipeline/*`)
-- `POST /pipeline/record/session` - Record with session type
-- `POST /pipeline/extract` - Extract from text
-- `POST /pipeline/validate` - Validate text
-- `GET /pipeline/task/{task_id}` - Get task status
-- `POST /pipeline/lifecycle/compress` - Trigger compression
-- `GET /pipeline/queue/stats` - Queue statistics
-- `GET /pipeline/queue/dead-letter` - Failed tasks
-- `POST /pipeline/queue/retry` - Retry failed task
-- `POST /pipeline/queue/cleanup` - Cleanup old tasks
-
-#### Reminders (`/reminders`)
-- `GET /reminders/upcoming` - Get upcoming reminders
-- `POST /reminders/{alert_id}/acknowledge` - Acknowledge reminder
-
-#### Speaker (`/speaker`)
-- `POST /speaker/train` - Train voice profile
-- `GET /speaker/profiles` - List voice profiles
-
-#### Privacy (`/privacy`)
-- `GET /privacy` - Get privacy status
-- `POST /privacy/toggle` - Toggle privacy mode
+Interactive docs: http://localhost:8000/docs
 
 ---
 
-## 📚 API Documentation
+### System
 
-### Base URL
+#### `GET /`
+
+```json
+{ "message": "Verath API v3.0.0" }
 ```
-http://localhost:8000
+
+#### `GET /status`
+
+Returns service health without authentication.
+
+```json
+{
+  "status": "running",
+  "version": "3.0.0",
+  "scheduler": "running",
+  "overall": "healthy",
+  "nodes": 42,
+  "services": {
+    "mongodb": "healthy",
+    "chromadb": "healthy",
+    "groq": "healthy"
+  }
+}
 ```
 
-### Authentication
+`groq` may be `"not_configured"` when `GROQ_API_KEY` is empty. Overall health requires MongoDB and ChromaDB only.
 
-All endpoints (except signup/login) require JWT authentication via the `Authorization` header.
+---
 
-#### Register New User
+### Authentication (`/auth`)
+
+| Method | Path | Rate limit | Description |
+|--------|------|------------|-------------|
+| POST | `/auth/signup` | 5/min | Create user |
+| POST | `/auth/login` | 10/min | Returns token pair |
+| POST | `/auth/refresh` | 20/min | Rotate refresh token |
+| POST | `/auth/logout` | — | Blacklist current access token `jti` |
+
+#### Signup
+
 ```http
 POST /auth/signup
 Content-Type: application/json
 
 {
-  "username": "your_username",
-  "password": "your_password"
+  "username": "alice",
+  "password": "securepassword123"
 }
 ```
 
-**Response (201)**:
-```json
-{
-  "message": "User created successfully",
-  "username": "your_username"
-}
-```
+**201:** `{ "message": "User created successfully", "username": "alice" }`  
+**409:** Username already exists
 
 #### Login
+
 ```http
 POST /auth/login
 Content-Type: application/json
 
 {
-  "username": "your_username",
-  "password": "your_password"
+  "username": "alice",
+  "password": "securepassword123"
 }
 ```
 
-**Response (200)**:
+**200:**
+
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "username": "alice",
   "token_type": "bearer"
 }
 ```
 
-#### Refresh Token
+#### Refresh
+
 ```http
 POST /auth/refresh
 Content-Type: application/json
 
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
+{ "refresh_token": "eyJ..." }
 ```
 
-**Response (200)**: New token pair (refresh token rotation)
+Returns a new access + refresh pair; old refresh token is invalidated.
 
-### Memory Operations
+#### Logout
 
-#### Record Audio
+```http
+POST /auth/logout
+Authorization: Bearer <access_token>
+```
+
+**200:** `{ "message": "Logged out successfully" }`
+
+---
+
+### Recording
+
+#### `POST /record`
+
+Record from server microphone and process immediately.
+
 ```http
 POST /record
 Authorization: Bearer <token>
@@ -502,149 +767,53 @@ Content-Type: application/json
 
 {
   "duration": 10,
-  "filename": "optional_filename.wav"
+  "filename": "optional_name.wav"
 }
 ```
 
-**Response (200)**:
+**200:**
+
 ```json
 {
   "success": true,
-  "memory": {
-    "id": "uuid",
-    "text": "transcribed text",
-    "intent": "meeting",
-    "importance": 0.85
-  },
-  "message": "Audio processed successfully"
+  "memory": { "id": "uuid", "text": "...", "intent": "meeting", "importance": 0.85 },
+  "message": "Audio processed successfully",
+  "error": null
 }
 ```
 
-#### Query Memories (RAG)
+#### `POST /record/upload`
+
+Multipart upload from mobile.
+
 ```http
-GET /query?q=what%20did%20I%20do%20today&limit=5&intent_filter=meeting&min_importance=0.5
+POST /record/upload
 Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+file: <audio.wav>
+timestamp: <optional ISO string>
 ```
 
-**Query Parameters**:
-- `q` (required): Your question
-- `limit` (optional, default 5): Number of results (1-20)
-- `intent_filter` (optional): Filter by intent
-- `min_importance` (optional, default 0.0): Minimum importance (0.0-1.0)
+#### `POST /record/session`
 
-**Response (200)**:
-```json
-{
-  "answer": "Based on your memories, you had a meeting with John at 3pm...",
-  "context": [
-    "meeting with John at 3pm to discuss project",
-    "discussed timeline and deliverables"
-  ],
-  "sources": [
-    {
-      "speaker": "John",
-      "intent": "meeting",
-      "timestamp": "2024-01-15T15:00:00",
-      "importance": 0.85,
-      "confidence": 0.92
-    }
-  ],
-  "confidence_score": 0.92
-}
-```
+Queue a session-based recording for background processing.
 
-#### Get Timeline
 ```http
-GET /timeline
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "timeline": [
-    {
-      "time": "10:30 AM",
-      "text": "Meeting with the team about project timeline",
-      "speaker": "John",
-      "intent": "meeting"
-    }
-  ]
-}
-```
-
-#### Get Daily Summary
-```http
-GET /summary
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "summary": "Today you had 3 meetings, discussed the project timeline, and set a deadline for Friday..."
-}
-```
-
-#### Get Insights
-```http
-GET /insights
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "insights": [
-    "You frequently discuss project deadlines on Mondays",
-    "Most important meetings happen in the morning",
-    "You have 5 upcoming deadlines this week"
-  ]
-}
-```
-
-#### Get Statistics
-```http
-GET /statistics
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "total": 1248,
-  "by_intent": {
-    "meeting": 45,
-    "deadline": 12,
-    "task": 89
-  },
-  "by_speaker": {
-    "John": 34,
-    "Sarah": 28
-  },
-  "avg_importance": 0.65,
-  "recent_count": 5
-}
-```
-
-### Pipeline Operations
-
-#### Record with Session Type
-```http
-POST /pipeline/record/session
-Authorization: Bearer <token>
+POST /record/session
 Content-Type: application/json
 
 {
   "session_type": "meeting",
   "duration": 60,
-  "filename": "optional.wav"
+  "filename": null
 }
 ```
 
-**Session Types**: `manual`, `lecture`, `meeting`, `general`, `short`
+**Session types:** `manual`, `lecture`, `meeting`, `general`, `short`
 
-**Response (200)**:
+**200:**
+
 ```json
 {
   "success": true,
@@ -654,884 +823,536 @@ Content-Type: application/json
 }
 ```
 
-#### Extract from Text
-```http
-POST /pipeline/extract
-Authorization: Bearer <token>
-Content-Type: application/json
+---
 
+### Query (`GET /query`)
+
+Natural-language search with RAG.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `q` | string | required | Question (1–500 chars) |
+| `limit` | int | 5 | Final sources after re-rank (1–20) |
+| `page` | int | 1 | Pagination page for sources |
+| `page_size` | int | 20 | Sources per page (1–100) |
+| `intent_filter` | string | null | e.g. `meeting`, `deadline` |
+| `min_importance` | float | 0.0 | 0.0–1.0 |
+
+```http
+GET /query?q=what%20meetings%20today&limit=5&intent_filter=meeting&min_importance=0.5
+Authorization: Bearer <token>
+```
+
+**200:**
+
+```json
 {
-  "text": "meet tomorrow at 3pm with the team about the project deadline"
+  "answer": "You had a meeting with John at 3pm...",
+  "context": ["meeting with John at 3pm..."],
+  "sources": [
+    {
+      "speaker": "John",
+      "intent": "meeting",
+      "timestamp": "2024-01-15T15:00:00",
+      "importance": 0.85,
+      "confidence": 0.92
+    }
+  ],
+  "confidence_score": 0.92,
+  "pagination": {
+    "total": 3,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1
+  }
 }
 ```
 
-**Response (200)**:
+---
+
+### Memories
+
+#### `DELETE /memory/{memory_id}`
+
+Deletes from MongoDB and ChromaDB. Returns **404** if not found, **403** if another user’s memory.
+
+```json
+{ "message": "Memory deleted successfully", "id": "uuid" }
+```
+
+---
+
+### Analytics & export
+
+| Method | Path | Cache TTL | Description |
+|--------|------|-----------|-------------|
+| GET | `/summary` | 15 min | Daily LLM summary |
+| GET | `/timeline` | — | Today’s events (paginated) |
+| GET | `/insights` | 15 min | Pattern insights |
+| GET | `/statistics` | 5 min | Counts by intent/speaker |
+| GET | `/export` | — | JSON or CSV download |
+| GET | `/graph` | 10 min | Nodes + links for viz |
+| POST | `/cache/invalidate` | — | Clear user cache |
+| GET | `/cache/stats` | — | Global cache metrics |
+
+#### Timeline pagination
+
+| Parameter | Default |
+|-----------|---------|
+| `page` | 1 |
+| `page_size` | 20 (max 100) |
+
+#### Export
+
+| Parameter | Description |
+|-----------|-------------|
+| `format` | `json` or `csv` |
+| `intent_filter` | Optional |
+| `start_date` | ISO date string |
+| `end_date` | ISO date string |
+
+CSV responses use `Content-Disposition: attachment`.
+
+#### Graph
+
+| Parameter | Default |
+|-----------|---------|
+| `limit` | 100 (max 500) |
+
+Returns `{ "nodes": [...], "links": [...] }`.
+
+---
+
+### Text pipeline (no `/pipeline` prefix)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/extract` | Extract intent/entities/summary from text |
+| POST | `/validate` | Validate against noise/duplicates |
+| GET | `/task/{task_id}` | Background task status |
+| POST | `/lifecycle/compress` | Schedule daily compression job |
+| GET | `/queue/stats` | Queue depth and status |
+| GET | `/queue/dead-letter` | Failed tasks (`limit` query param) |
+| POST | `/queue/retry` | Body: `{ "task_id": "..." }` |
+| POST | `/queue/cleanup` | Query: `days=7` (1–365) |
+
+#### Extract example
+
+```http
+POST /extract
+Content-Type: application/json
+
+{ "text": "meet tomorrow at 3pm with the team about the deadline" }
+```
+
+**200:**
+
 ```json
 {
-  "cleaned_text": "meet tomorrow at 3pm with team about project deadline",
+  "cleaned_text": "meet tomorrow at 3pm with team about deadline",
   "intent": "meeting",
-  "entities": {
-    "dates": ["tomorrow"],
-    "people": [],
-    "locations": [],
-    "organizations": []
-  },
-  "summary": "Meeting scheduled for tomorrow at 3pm with team regarding project deadline",
+  "entities": { "dates": ["tomorrow"], "people": [], "locations": [], "organizations": [] },
+  "summary": "Meeting tomorrow at 3pm with team regarding deadline",
   "has_correction": false,
   "importance_boost": 0.35
 }
 ```
 
-#### Validate Text
-```http
-POST /pipeline/validate
-Authorization: Bearer <token>
-Content-Type: application/json
+#### Task status
 
-{
-  "text": "your text here"
-}
-```
-
-**Response (200)**:
-```json
-{
-  "is_valid": true,
-  "is_duplicate": false,
-  "noise_level": "low",
-  "length_check": "passed"
-}
-```
-
-#### Get Task Status
-```http
-GET /pipeline/task/{task_id}
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
 ```json
 {
   "task_id": "uuid",
   "status": "completed",
   "attempts": 1,
-  "created_at": "2024-01-15T10:00:00",
-  "updated_at": "2024-01-15T10:01:00",
+  "created_at": "...",
+  "updated_at": "...",
   "error": null
 }
 ```
 
-### Reminders
-
-#### Get Upcoming Reminders
-```http
-GET /reminders/upcoming?hours=24&include_acknowledged=false
-Authorization: Bearer <token>
-```
-
-**Query Parameters**:
-- `hours` (optional, default 24): Lookahead window (1-168)
-- `include_acknowledged` (optional, default false): Include acknowledged reminders
-
-**Response (200)**:
-```json
-{
-  "count": 3,
-  "reminders": [
-    {
-      "id": "uuid",
-      "memory_id": "uuid",
-      "user_id": "user123",
-      "text": "Meeting with team tomorrow",
-      "intent": "meeting",
-      "parsed_date": "2024-01-16T15:00:00",
-      "due_in_minutes": 1440,
-      "alerted_at": "2024-01-15T10:00:00",
-      "acknowledged": false
-    }
-  ]
-}
-```
-
-#### Acknowledge Reminder
-```http
-POST /reminders/{alert_id}/acknowledge
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "message": "Reminder acknowledged",
-  "alert_id": "uuid"
-}
-```
-
-### Speaker Operations
-
-#### Train Speaker
-```http
-POST /speaker/train
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "John",
-  "sample_text": "Sample voice text or name"
-}
-```
-
-**Response (200)**:
-```json
-{
-  "msg": "voice profile saved",
-  "name": "John"
-}
-```
-
-#### Get Voice Profiles
-```http
-GET /speaker/profiles
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "profiles": ["John", "Sarah", "Mike"]
-}
-```
-
-### Privacy Operations
-
-#### Get Privacy Status
-```http
-GET /privacy
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "private": false
-}
-```
-
-#### Toggle Privacy Mode
-```http
-POST /privacy/toggle
-Authorization: Bearer <token>
-```
-
-**Response (200)**:
-```json
-{
-  "private": true
-}
-```
-
-When privacy mode is enabled, all recording and processing is paused.
-
-### System Status
-
-#### Health Check
-```http
-GET /status
-```
-
-**Response (200)**:
-```json
-{
-  "status": "ok",
-  "version": "3.0.0",
-  "scheduler": "running"
-}
-```
+Statuses: `pending` → `processing` → `completed` | `failed` | `dead`
 
 ---
 
-## 📱 Frontend Applications
+### Reminders (`/reminders`)
 
-### Mobile App (React Native)
+#### `GET /reminders/upcoming`
 
-**Location**: `mobile/`
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `hours` | 24 | Lookahead 1–168 hours |
+| `include_acknowledged` | false | Include read alerts |
 
-**Features**:
-- **Home Screen**: Dashboard with neural core status, memory stats, and activity stream
-- **Ask Screen**: Chat interface for querying with voice input
-- **Timeline Screen**: Chronological memory view
-- **Settings Screen**: Configuration options
-- **Authentication**: Login/Register with JWT tokens
-- **Voice Recording**: Quick capture with microphone button
-- **Source Attribution**: Shows speaker, timestamp, importance
-- **Onboarding**: 3-step setup flow
+#### `POST /reminders/{alert_id}/acknowledge`
 
-**Screens**:
-1. **LoginScreen**: Secure authentication with gradient UI
-2. **RegisterScreen**: User registration
-3. **HomeScreen**: Main dashboard with stats and status
-4. **AskScreen**: Query interface with voice support
-5. **TimelineScreen**: Memory timeline
-6. **SettingsScreen**: App configuration
+Mark a reminder as read.
 
-**Configuration**:
-Edit `mobile/services/api.js`:
+---
+
+### Speaker
+
+| Method | Path | Body |
+|--------|------|------|
+| POST | `/speaker/train` | `{ "name": "John", "sample_text": "..." }` |
+| GET | `/speaker/profiles` | — |
+
+---
+
+### Privacy (`/privacy`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/privacy/` | `{ "private": false }` |
+| POST | `/privacy/toggle` | Flip privacy mode; pauses processing when on |
+
+---
+
+### WebSocket
+
+```
+ws://localhost:8000/ws/updates?token=<access_token>
+```
+
+- Invalid token → close code `4001`
+- Client ping: send `{"type": "ping"}` → receive `{"type": "pong"}`
+- Server can push personal messages via `ConnectionManager`
+
+**JavaScript example:**
+
 ```javascript
-const BASE_URL = "http://YOUR_COMPUTER_IP:8000";  // Use IP for physical devices
-```
-
-### Web Dashboard
-
-**Location**: `web/`
-
-**Features**:
-- **Dashboard**: Statistics, timeline, insights, query interface
-- **Authentication**: Secure login/signup
-- **Neural Theme**: Dark theme with glassmorphism
-- **Real-time Stats**: Auto-refresh every 30 seconds
-- **Query Interface**: Natural language search with sources
-- **Timeline View**: Chronological memory display
-- **Intel Summary**: AI-generated daily briefings
-- **Neural Insights**: Pattern analysis
-
-**Access**:
-```bash
-cd web
-python -m http.server 8080
-```
-
-Navigate to `http://localhost:8080`
-
----
-
-## 🚀 Setup Instructions
-
-### Prerequisites
-
-- **Python 3.11+** - Backend runtime
-- **Node.js 18+** - Mobile app development
-- **MongoDB 6.0+** - Data storage (local or Atlas)
-- **Groq** - Cloud LLM inference
-- **Gemini** - Cloud embeddings inference
-- **Git** - Version control
-
-### Installation
-
-#### 1. Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/Verath.git
-cd Verath
-```
-
-#### 2. Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-#### 3. Configure Environment
-
-```bash
-# Copy environment template
-cd ..
-cp .env.example .env
-
-# Edit .env with your configuration
-# Required settings:
-# - MONGO_URI: MongoDB connection string
-# - SECRET_KEY: Random secret key for JWT (min 32 chars)
-```
-
-Example `.env` file:
-
-```env
-# Verath Configuration
-
-# LLM Providers (Groq + Gemini Fallback)
-GROQ_API_KEY=           # console.groq.com — free, 30 RPM
-GEMINI_API_KEY=         # aistudio.google.com — free, generous limits
-
-# Embeddings
-EMBED_PROVIDER=gemini
-
-# Whisper Settings
-WHISPER_MODEL=base
-
-# Server Settings
-HOST=0.0.0.0
-PORT=8000
-DEFAULT_RECORD_SECONDS=10
-
-# CORS Settings
-ALLOW_CORS=http://localhost:8080,http://localhost:3000,*
-
-# Storage Paths
-VECTOR_DB_PATH=data/chroma_db
-VOICE_DB_PATH=data/voices.pkl
-
-# MongoDB Configuration
-MONGO_URI=mongodb+srv://your-username:your-password@cluster0.d7dlkdt.mongodb.net/
-DATABASE_NAME=verath
-
-# Security
-SECRET_KEY=generate-a-long-random-secret-key-herettings
-
-# Audio Settings
-AUDIO_SAMPLE_RATE=16000
-AUDIO_CHANNELS=1
-AUDIO_FORMAT=int16
-
-# Processing Settings
-MAX_AUDIO_CHUNK_SIZE=30
-SILENCE_THRESHOLD=0.01
-MIN_TRANSCRIPTION_LENGTH=5
-
-# Memory Settings
-MAX_MEMORY_RESULTS=100
-MEMORY_IMPORTANCE_THRESHOLD=0.6
-
-# UI Settings
-THEME=dark
-AUTO_REFRESH_INTERVAL=30
-
-```
-
-#### 4. Start MongoDB
-
-**Using Docker**:
-```bash
-docker-compose up -d mongodb
-```
-
-**Using MongoDB Atlas**:
-1. Create a free cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas)
-2. Whitelist your IP address
-3. Get the connection string
-4. Set `MONGO_URI` in `.env`
-
-
-#### 7. Start the Backend Server
-
-```bash
-cd backend
-python run.py
-```
-
-The backend will be available at `http://localhost:8000`
-
-API documentation: `http://localhost:8000/docs`
-
-#### 8. Start the Web Frontend (React + Vite)
-
-```bash
-cd web
-npm install
-npm run dev
-```
-The React frontend will be available at `http://localhost:5173`.
-
-#### 9. Mobile App Setup (Optional)
-
-```bash
-cd mobile
-npm install
-
-# Configure API URL in mobile/services/api.js
-# Update BASE_URL to your backend IP (not localhost for mobile testing)
-
-# Start Metro bundler
-npm start
-
-# Run on iOS
-npx expo run:ios
-
-# Run on Android
-npx expo run:android
-
-# Or use Expo Go app
-npx expo start
-```
-
-
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `MODEL_NAME` | LLM model name | `mistral` | No |
-| `EMBED_MODEL` | Embedding model name | `nomic-embed-text` | No |
-| `WHISPER_MODEL` | Whisper model size | `base` | No |
-| `HOST` | Server host | `0.0.0.0` | No |
-| `PORT` | Server port | `8000` | No |
-| `DEFAULT_RECORD_SECONDS` | Default recording duration | `10` | No |
-| `ALLOW_CORS` | CORS origins | `*` | No |
-| `VECTOR_DB_PATH` | ChromaDB path | `data/chroma_db` | No |
-| `VOICE_DB_PATH` | Voice profiles path | `data/voices.pkl` | No |
-| `MONGO_URI` | MongoDB connection string | - | Yes |
-| `DATABASE_NAME` | MongoDB database name | `Verath` | No |
-| `SECRET_KEY` | JWT secret key (min 32 chars) | - | Yes |
-
-### Groq & Gemini Configuration
-
-Ensure you have valid API keys for both Groq and Gemini.
-```
-
-### Whisper Model Configuration
-
-Available models (from smallest to largest):
-- `tiny` - Fastest, least accurate (~70MB)
-- `base` - Good balance (default, ~140MB)
-- `small` - More accurate (~460MB)
-- `medium` - Even more accurate (~1.5GB)
-- `large` - Most accurate, slowest (~3GB)
-
-Change in `.env`:
-```env
-WHISPER_MODEL=base
-```
-
-### Memory Lifecycle Configuration
-
-Edit `backend/app/db/memory_lifecycle.py` to customize lifecycle thresholds.
-
----
-
-## 🧪 Testing
-
-### Run System Tests
-
-```bash
-cd backend
-python test_system.py
-```
-
-This tests basic endpoint connectivity and functionality.
-
-### Run Production Tests
-
-```bash
-cd backend
-python test_production.py
-```
-
-This tests production-specific configurations and security settings.
-
-### Test Scenarios
-
-**Example 1: Speech Correction**
-```python
-Input: "let's meet tomorrow... no no day after tomorrow"
-Output: Meeting scheduled for day after tomorrow
-Features: Correction detection, temporal parsing
-```
-
-**Example 2: Deadline with Importance**
-```python
-Input: "I need to submit the project by next Friday"
-Output: Intent: deadline, Date: next Friday, Importance: 0.8
-Features: Intent detection, temporal parsing, importance boost
-```
-
-**Example 3: Meeting with People**
-```python
-Input: "Meeting with John and Sarah at 3pm to discuss the project"
-Output: Intent: meeting, People: [John, Sarah], Time: 3pm
-Features: Entity extraction, intent detection
+const token = localStorage.getItem("verath_token");
+const ws = new WebSocket(`ws://localhost:8000/ws/updates?token=${token}`);
+
+ws.onopen = () => ws.send(JSON.stringify({ type: "ping" }));
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
 ```
 
 ---
 
-## 🐳 Docker Deployment
+## Authentication
 
-### Using Docker Compose (Recommended)
+### Token lifecycle
+
+1. **Login** → receive `access_token` (short-lived) + `refresh_token`.
+2. **API calls** → `Authorization: Bearer <access_token>`.
+3. **Expiry** → `POST /auth/refresh` with refresh token; old refresh is invalidated (rotation).
+4. **Logout** → `POST /auth/logout` blacklists the access token `jti` until expiry.
+
+### Audit logging
+
+Auth events (`signup`, `login`, `refresh`, `logout`) are written to:
+
+- Application logs (`backend/logs/`)
+- MongoDB `audit_logs` collection (username, IP, success, timestamp)
+
+### Rate limits (per client IP)
+
+| Endpoint | Limit |
+|----------|-------|
+| `/auth/signup` | 5 / minute |
+| `/auth/login` | 10 / minute |
+| `/auth/refresh` | 20 / minute |
+
+Exceeded limits return HTTP 429.
+
+---
+
+## Memory model & lifecycle
+
+### Document shape (MongoDB)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `_id` | string (UUID) | Memory ID |
+| `user_id` | string | Owner |
+| `text` | string | Cleaned transcript or input |
+| `metadata` | object | intent, speaker, importance, summary, lifecycle |
+| `embedding` | float[] | Stored for Chroma rebuild |
+| `created_at` | datetime | UTC timestamp |
+| `updated_at` | datetime | Last modification |
+
+### ChromaDB
+
+- One collection per user: `user_{user_id}` (hyphens → underscores)
+- Cosine HNSW index
+- Metadata: `intent`, `speaker`, `importance`, `lifecycle`, `timestamp`
+
+### Lifecycle stages
+
+Managed by `MemoryLifecycleManager`:
+
+| Stage | Meaning |
+|-------|---------|
+| `short_term` | Recent, high-churn memories |
+| `long_term` | Promoted when importance ≥ 0.6 |
+| `archived` | Older than 7 days (configurable in code) |
+
+Compression can be triggered via `POST /lifecycle/compress`.
+
+---
+
+## Background worker & task queue
+
+- **Enqueue:** `POST /record/session` and internal pipeline jobs.
+- **Retry:** Exponential backoff (2s, 4s, 8s) up to max attempts.
+- **Dead letter:** Permanently failed tasks listed at `GET /queue/dead-letter`.
+- **Retry manually:** `POST /queue/retry` with `task_id`.
+- **Cleanup:** `POST /queue/cleanup?days=7` removes old completed task records.
+
+Inspect queue health: `GET /queue/stats`.
+
+---
+
+## Testing
 
 ```bash
-# Build and start all services
+cd backend
+pytest -v --cov=app --cov-report=term-missing
+```
+
+Or from repo root:
+
+```bash
+make test
+make e2e    # tests/test_e2e.py only
+```
+
+### Test modules
+
+| File | Focus |
+|------|-------|
+| `test_health.py` | `/status`, startup |
+| `test_auth.py` | Signup, login, refresh, logout |
+| `test_query.py` | RAG query endpoint |
+| `test_memory_pipeline.py` | Extraction and storage |
+| `test_reminders.py` | Reminder scheduling |
+| `test_background_worker.py` | Queue and retries |
+| `test_privacy.py` | Privacy toggle |
+| `test_queue_migration_integration.py` | Queue migration |
+| `test_e2e.py` | Full integration flow |
+| `test_system.py` | System-level checks |
+| `test_real_world.py` | Realistic scenarios |
+
+CI (`.github/workflows/ci.yml`): Python 3.11, `ruff check`, `pytest --cov`, Codecov upload.
+
+---
+
+## Docker & deployment
+
+### Docker Compose
+
+```bash
 docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
 ```
 
-This will start:
-- MongoDB (port 27017)
-- Backend API (port 8000)
+Services:
 
-### Using Docker Directly
+| Service | Port | Image |
+|---------|------|-------|
+| mongodb | 27017 | mongo:latest |
+| backend | 8000 | Built from `Dockerfile` |
 
-```bash
-# Build the image
-docker build -t Verath:v3.0 .
+### Dockerfile highlights
 
-# Run the container
-docker run -p 8000:8000 --env-file .env Verath:v3.0
+- Multi-stage build (Python 3.11-slim)
+- FFmpeg + libsndfile for audio
+- Healthcheck on `GET /status`
+- CMD: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+
+### Production checklist
+
+- [ ] Set `ENV=production`
+- [ ] Restrict `ALLOW_CORS` to your frontend origins
+- [ ] Strong `SECRET_KEY` (never use defaults)
+- [ ] HTTPS via Nginx or Caddy reverse proxy
+- [ ] MongoDB authentication and network isolation
+- [ ] Backup `data/chroma_db` and MongoDB regularly
+- [ ] Monitor `/status` and application logs
+- [ ] Rotate API keys periodically
+
+### Example Nginx snippet
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name api.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
 ```
 
----
+### systemd (Linux)
 
-## 🚢 Deployment
-
-### Production Deployment
-
-#### Backend (VPS/Cloud)
-
-1. **Set up server** (Ubuntu 22.04 recommended)
-2. **Install dependencies**:
-```bash
-sudo apt update
-sudo apt install python3.11 python3-pip mongodb
-```
-
-3. **Clone repository**:
-```bash
-git clone https://github.com/yourusername/Verath.git
-cd Verath
-```
-
-4. **Configure environment**:
-```bash
-cp .env.example .env
-nano .env  # Edit with production values
-```
-
-5. **Install Python dependencies**:
-```bash
-cd backend
-pip3 install -r requirements.txt
-```
-
-6. **Set up systemd service**:
 ```ini
-# /etc/systemd/system/Verath.service
 [Unit]
 Description=Verath API
-After=network.target
+After=network.target mongodb.service
 
 [Service]
 Type=simple
-User=youruser
-WorkingDirectory=/path/to/Verath/backend
-ExecStart=/usr/bin/python3 /path/to/Verath/backend/run.py
+User=verath
+WorkingDirectory=/opt/Verath/backend
+EnvironmentFile=/opt/Verath/.env
+ExecStart=/opt/Verath/backend/venv/bin/python run.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-7. **Start service**:
-```bash
-sudo systemctl enable Verath
-sudo systemctl start Verath
-```
-
-8. **Set up reverse proxy** (Nginx):
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-#### Web App (Static Hosting)
-
-Deploy to Vercel, Netlify, or any static host:
-
-```bash
-cd web
-# Deploy to Vercel
-vercel deploy
-
-# Or deploy to Netlify
-netlify deploy --prod
-```
-
-#### Mobile App
-
-Using Expo EAS:
+### Mobile release (Expo EAS)
 
 ```bash
 cd mobile
-eas build --platform ios
 eas build --platform android
-eas submit --platform ios
-eas submit --platform android
+eas build --platform ios
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## Security
 
-### MongoDB Connection Issues
+| Control | Implementation |
+|---------|----------------|
+| Password storage | bcrypt hashing |
+| API auth | JWT (access + refresh) |
+| Logout | Token `jti` blacklist in MongoDB |
+| Input validation | Pydantic + custom validators |
+| Rate limiting | slowapi on auth routes |
+| User isolation | Per-user Mongo queries and Chroma collections |
+| CORS | Restricted in production via `ENV` |
+| Secrets | `.env` only; Docker secret file support for `SECRET_KEY` |
 
-**Problem**: Cannot connect to MongoDB
-
-**Solutions**:
-1. Verify MongoDB is running: `sudo systemctl status mongodb`
-2. Check connection string format
-3. For Atlas, whitelist your IP in the dashboard
-4. Check network connectivity
-5. Test connection: `mongosh "mongodb+srv://..."`
-
-### Whisper Model Issues
-
-**Problem**: Slow transcription or model errors
-
-**Solutions**:
-1. First transcription downloads the model (be patient)
-2. Use a smaller model: `WHISPER_MODEL=tiny` or `base`
-3. Ensure sufficient disk space (models are 70MB-3GB)
-4. Check audio format (WAV, 16kHz, mono recommended)
-
-### Mobile App Connection Issues
-
-**Problem**: Mobile app cannot connect to backend
-
-**Solutions**:
-1. For physical devices, use your computer's IP instead of `localhost`
-2. Find your IP: `ipconfig` (Windows) or `ifconfig` (Mac/Linux)
-3. Ensure device and computer are on the same network
-4. Check firewall settings on your computer
-5. Verify backend is running and accessible
-
-### Vector Database Issues
-
-**Problem**: ChromaDB errors or slow queries
-
-**Solutions**:
-1. Check disk space for `data/chroma_db`
-2. Verify write permissions
-3. Clear and rebuild: `rm -rf data/chroma_db`
-4. Check for corrupted data
-
-### Memory Extraction Issues
-
-**Problem**: Poor quality transcriptions or incorrect extraction
-
-**Solutions**:
-1. Improve audio quality (reduce background noise)
-2. Speak clearly and at a moderate pace
-3. Check Whisper model size (larger = more accurate)
-4. Review extraction logs for errors
-5. Adjust importance thresholds in configuration
-
-### Reminder Not Firing
-
-**Problem**: Reminders not being created or alerted
-
-**Solutions**:
-1. Check scheduler status: `GET /status`
-2. Verify memories have dates and appropriate intents
-3. Check reminder service logs
-4. Ensure MongoDB alerts collection exists
-5. Manually trigger: Check `check_and_fire_reminders()` function
-
-### Common Errors
-
-**"Database not connected"**: Check MongoDB connection string and ensure MongoDB is running
-
-
-**"Authentication failed"**: Verify SECRET_KEY is set and consistent
-
-
-**"SECRET_KEY must be at least 32 characters"**: Generate a longer key:
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
+**Report vulnerabilities privately** — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 🤝 Contributing
+## Performance
 
-Contributions are welcome! Please follow these guidelines:
+| Operation | Typical latency (indicative) |
+|-----------|------------------------------|
+| Transcription (base model) | ~0.5× real-time on CPU |
+| Memory store | ~100 ms per memory |
+| Embedding | ~200 ms per segment |
+| RAG query | &lt; 2 s for typical questions |
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**Scale notes (tested ranges):**
 
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/yourusername/Verath.git
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate
-
-# Install development dependencies
-pip install -r requirements.txt
-
-# Run tests
-python test_system.py
-python test_production.py
-```
-
-### Code Style
-
-- Python: Follow PEP 8
-- JavaScript: Use ESLint
-- Add docstrings to functions
-- Keep functions focused and small
+- 10,000+ memories per user
+- Per-user Chroma collections keep search isolated
+- Cached endpoints reduce repeated LLM calls
 
 ---
 
-## 📄 License
+## Troubleshooting
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### MongoDB
+
+| Symptom | Fix |
+|---------|-----|
+| Connection refused | Start Mongo: `docker-compose up -d mongodb` |
+| Atlas timeout | Whitelist IP; verify `MONGO_URI` user/password |
+| `Database not connected` | Check logs; ensure `connect_to_mongo()` succeeds at startup |
+
+### Authentication
+
+| Symptom | Fix |
+|---------|-----|
+| `SECRET_KEY must be at least 32 characters` | Generate longer key (see setup) |
+| `SECRET_KEY is set to a known insecure default` | Change from `changeme` / `secret` |
+| 401 on all routes | Token expired — refresh or re-login |
+| 429 Too Many Requests | Wait for rate limit window |
+
+### Audio & Whisper
+
+| Symptom | Fix |
+|---------|-----|
+| First run very slow | Model download on first use |
+| Poor transcription | Use `WHISPER_MODEL=small` or larger; reduce noise |
+| `Low signal or no speech` | Speak closer to mic; check `SILENCE_THRESHOLD` |
+| FFmpeg errors | Install FFmpeg (included in Docker image) |
+
+### Search & vectors
+
+| Symptom | Fix |
+|---------|-----|
+| Empty query results | Confirm memories exist; check `user_id` isolation |
+| Chroma errors | Ensure `data/chroma_db` writable; restart API to rebuild collections |
+| Stale search after delete | Deletion removes both stores; re-query should reflect |
+
+### Mobile & web
+
+| Symptom | Fix |
+|---------|-----|
+| Mobile cannot connect | Use LAN IP in `api.js`, same Wi‑Fi as PC |
+| CORS error in browser | Add frontend origin to `ALLOW_CORS` in production |
+| Dashboard 404 after login | Serve `web/legacy/` via Vite or static host |
+
+### Cloud APIs
+
+| Symptom | Fix |
+|---------|-----|
+| `groq: not_configured` in `/status` | Set `GROQ_API_KEY` or use `LLM_PROVIDER=gemini` |
+| Embedding failures | Set `GEMINI_API_KEY`; check quota |
+| LLM timeout | Increase `LLM_TIMEOUT` |
 
 ---
 
-## 🙏 Acknowledgments
+## Roadmap
 
-- **OpenAI Whisper** for state-of-the-art speech recognition
-- **Groq** and **Gemini** for LLM inference and embeddings
-- **ChromaDB** for efficient vector storage
-- **FastAPI** for the modern web framework
-- **React Native & Expo** for cross-platform mobile development
-- **MongoDB** for reliable document storage
-- The open-source community for the amazing tools and libraries
+### Planned
 
----
-
-## 📞 Support
-
-For issues, questions, or contributions:
-
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/Verath/issues)
-- **Discussions**: [Join the discussion](https://github.com/yourusername/Verath/discussions)
-- Check the troubleshooting section above
-- Review additional documentation:
-  - [SETUP.md](SETUP.md) - Detailed setup guide
-  - [UPGRADE_GUIDE_v3.md](UPGRADE_GUIDE_v3.md) - v3.0 upgrade guide
-  - [PRODUCTION_AUDIT_FIXES.md](PRODUCTION_AUDIT_FIXES.md) - Security fixes
-
----
-
-## 🔮 Roadmap
-
-### Upcoming Features
-
-- [ ] Multi-language support for transcription
-- [ ] Advanced speaker diarization with voice embeddings
-- [ ] Memory graph visualization
-- [ ] Export memories (JSON, CSV, PDF)
-- [ ] Calendar integration
-- [ ] Voice commands for quick actions
-- [ ] Collaborative memory sharing
-- [ ] Advanced analytics dashboard
+- [ ] Multi-language transcription
+- [ ] Full React dashboard (replace `web/legacy/`)
+- [ ] Calendar and push notification integrations
+- [ ] Collaborative / shared memory spaces
 - [ ] Plugin system for custom extractors
-- [ ] Mobile widgets and notifications
-- [ ] WebRTC for browser-based recording
-- [ ] Email integration
-- [ ] Cross-encoder re-ranking for improved search
+- [ ] Browser WebRTC recording
 
-### Version History
+### Shipped in v3.0
 
-- **v3.0.0** - Current release with reminders, background processing, pipeline improvements
-- **v2.0.0** - Added mobile app, web dashboard, advanced extraction
-- **v1.0.0** - Initial release with core recording and query functionality
+- Export (JSON/CSV), memory graph, WebSocket updates
+- Audio upload, offline mobile queue, response caching
+- Chroma rebuild on startup, paginated timeline
+- Logout blacklist, audit logs, enhanced `/status`
 
 ---
 
-## 📊 Performance
+## Contributing
 
-### Benchmarks
+We welcome bug reports, documentation improvements, and pull requests.
 
-- **Transcription Speed**: ~0.5x real-time with base model
-- **Query Latency**: <2s for typical queries
-- **Memory Storage**: ~100ms per memory
-- **Embedding Generation**: ~200ms per text segment
+Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 
-### Scalability
-
-- **Memories per User**: 10,000+ tested
-- **Concurrent Users**: 100+ (with proper scaling)
-- **Query Throughput**: 50+ queries/second
+- Local development setup
+- Branch naming and commit conventions
+- Python and JavaScript style
+- PR checklist and test requirements
 
 ---
 
-## 🔒 Security
+## License & acknowledgments
 
-### Security Features
+This project is licensed under the **[MIT License](LICENSE)**.
 
-- JWT authentication with refresh token rotation
-- Password hashing with bcrypt
-- CORS configuration
-- Input validation with Pydantic
-- SQL injection prevention (MongoDB)
-- XSS protection in web app
-- User data isolation by user ID
+### Built with
 
-### Best Practices
-
-1. Keep your `SECRET_KEY` secure and random
-2. Use HTTPS in production
-3. Regularly update dependencies
-4. Enable firewall rules
-5. Use environment variables for sensitive data
-6. Regular database backups
-7. Restrict CORS origins in production
+- [FastAPI](https://fastapi.tiangolo.com/) — API framework
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — local speech-to-text
+- [Groq](https://groq.com/) — fast LLM inference
+- [Google Gemini](https://ai.google.dev/) — embeddings and LLM fallback
+- [ChromaDB](https://www.trychroma.com/) — vector database
+- [MongoDB](https://www.mongodb.com/) — document store
+- [React](https://react.dev/) & [Expo](https://expo.dev/) — clients
 
 ---
 
-## 🌐 Browser Compatibility
-
-### Web App
-
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-### Mobile App
-
-- iOS 14+
-- Android 8+ (API Level 26+)
-
----
-
-## 🎯 Use Cases
-
-### Personal Use
-- **Students**: Record lectures and ask questions about course material
-- **Professionals**: Track meeting notes and action items
-- **Researchers**: Capture thoughts and find connections
-- **Writers**: Record ideas and retrieve them by theme
-
-### Business Use
-- **Meeting Management**: Automatic transcription and action item extraction
-- **Customer Support**: Record calls for quality assurance
-- **Project Management**: Track discussions and decisions
-- **Knowledge Management**: Build organizational memory
-
----
-
-*“Forgetfulness is no longer a biological constraint; it's a technical setting.”* 🚀
+<p align="center"><em>“Forgetfulness is no longer a biological constraint — it’s a technical setting.”</em></p>

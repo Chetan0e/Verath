@@ -1,16 +1,15 @@
 {
-  "name": "web",
-  "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "name": "verath-web",
+  "version": "3.0.0",
+  "description": "Verath web client — React auth shell and legacy dashboard",
+  "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["verath", "memory", "ai"],
+  "license": "MIT",
   "dependencies": {
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.460.0",
