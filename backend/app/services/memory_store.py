@@ -305,3 +305,40 @@ async def all_memories(user_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
         doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
         memories.append(doc)
     return memories
+
+async def filtered_memories(
+    user_id: str,
+    intent_filter: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    limit: int = 10000,
+) -> List[Dict[str, Any]]:
+    """
+    Get memories for a user with filters pushed down to MongoDB.
+    Avoids loading the full collection into Python memory before filtering.
+    """
+    col = _memories_collection()
+
+    # Build query at DB level — only matching documents are transferred
+    query: Dict[str, Any] = {"user_id": user_id}
+
+    if intent_filter:
+        query["metadata.intent"] = intent_filter
+
+    if start_date or end_date:
+        date_filter: Dict[str, Any] = {}
+        if start_date:
+            date_filter["$gte"] = start_date
+        if end_date:
+            date_filter["$lte"] = end_date
+        query["created_at"] = date_filter
+
+    cursor = col.find(query).sort("created_at", -1).limit(limit)
+
+    memories = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
+        memories.append(doc)
+
+    return memories
