@@ -20,7 +20,7 @@ _bearer = HTTPBearer()
 async def _get_current_user(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
-    username = verify_access_token(creds.credentials)
+    username = await verify_access_token(creds.credentials)
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

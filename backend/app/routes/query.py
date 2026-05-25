@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.services.query_engine import run_query
 from app.models.schema import QueryResponse
-from app.services.auth import verify_access_token, get_current_user_id
+from app.services.auth import get_current_user_id
 from app.core.logging_config import logger
 
 router = APIRouter()

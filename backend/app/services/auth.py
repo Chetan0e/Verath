@@ -10,6 +10,7 @@ from jose import JWTError, jwt
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import settings
+from app.services.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,19 @@ def create_refresh_token(username: str) -> str:
 
 
 # ── Token verification ────────────────────────────────────────────────────────
-def verify_access_token(token: str) -> Optional[str]:
+async def verify_access_token(token: str) -> Optional[str]:
     """Returns username if valid access token, else None."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
             return None
+        jti = payload.get("jti")
+        if jti:
+            db = get_db()
+            if db is not None:
+                blacklisted = await db["blacklisted_tokens"].find_one({"jti": jti})
+                if blacklisted:
+                    return None
         return payload.get("sub")
     except JWTError:
         return None
@@ -119,7 +127,7 @@ async def get_current_user_id(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
     """Extract and verify user ID from Bearer token."""
-    username = verify_access_token(creds.credentials)
+    username = await verify_access_token(creds.credentials)
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
