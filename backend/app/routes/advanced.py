@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
-from app.services.memory_store import get_memory_stats, all_memories
+from app.services.memory_store import get_memory_stats, filtered_memories
 from app.services.auth import get_current_user_id
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
@@ -61,8 +61,8 @@ async def timeline(
         return {"timeline": [], "pagination": {"total": 0, "page": page, "page_size": page_size, "total_pages": 0}}
 
 
-@cached(ttl_seconds=900, key_prefix="insights")  # 15 minutes cache
 @router.get("/insights")
+@cached(ttl_seconds=900, key_prefix="insights")
 async def insights(user_id: str = Depends(get_current_user_id)):
     """Extract key insights from memories."""
     try:
