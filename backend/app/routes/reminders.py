@@ -58,6 +58,16 @@ async def get_upcoming(
     Return all pending reminder alerts for the current user
     within the next `hours` hours (default 24).
     """
+    if not (1 <= hours <= 168):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation failed",
+                "message": "hours must be between 1 and 168",
+                "field": "hours",
+                "received": hours
+            }
+        )
     reminders = await get_upcoming_reminders(
         user_id=user,
         hours=hours,
