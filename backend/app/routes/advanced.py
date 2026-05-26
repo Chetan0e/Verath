@@ -1,8 +1,9 @@
 from datetime import datetime
+import json
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
-from app.services.memory_store import get_memory_stats, all_memories
+from app.services.memory_store import get_memory_stats, filtered_memories
 from app.services.auth import get_current_user_id
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
@@ -91,36 +92,46 @@ async def export_memories(
 ):
     """
     Export memories in JSON or CSV format.
-    Supports optional intent_filter and date range filtering.
+    Filters are pushed down to MongoDB — no full collection load into Python memory.
+    JSON export uses StreamingResponse for memory efficiency on large datasets.
     """
     try:
         logger.info(f"Exporting memories for user {user_id}, format={format}")
-        
-        # Get all memories
-        memories = await all_memories(user_id, limit=10000)
-        
-        # Apply filters
-        if intent_filter:
-            memories = [m for m in memories if m.get("metadata", {}).get("intent") == intent_filter]
-        
+
+        # Parse date filters once
+        start_dt: datetime | None = None
+        end_dt: datetime | None = None
+
         if start_date:
-            start_dt = datetime.fromisoformat(start_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) >= start_dt]
-        
+            try:
+                start_dt = datetime.fromisoformat(start_date)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO format: YYYY-MM-DD")
+
         if end_date:
-            end_dt = datetime.fromisoformat(end_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) <= end_dt]
-        
+            try:
+                end_dt = datetime.fromisoformat(end_date)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO format: YYYY-MM-DD")
+
+        # Filters pushed to MongoDB — only matching docs fetched
+        memories = await filtered_memories(
+            user_id=user_id,
+            intent_filter=intent_filter or None,
+            start_date=start_dt,
+            end_date=end_dt,
+            limit=10000,
+        )
+
         if format == "csv":
-            # Generate CSV
             import csv
             from io import StringIO
             from fastapi.responses import StreamingResponse
-            
+
             output = StringIO()
             writer = csv.writer(output)
             writer.writerow(["id", "text", "intent", "importance", "speaker", "timestamp", "summary"])
-            
+
             for m in memories:
                 writer.writerow([
                     m.get("_id", ""),
@@ -131,9 +142,8 @@ async def export_memories(
                     m.get("created_at", ""),
                     m.get("metadata", {}).get("summary", "")
                 ])
-            
+
             output.seek(0)
-            
             return StreamingResponse(
                 iter([output.getvalue()]),
                 media_type="text/csv",
@@ -141,18 +151,35 @@ async def export_memories(
                     "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.csv"
                 }
             )
+
         else:
-            # Return JSON
-            return {
-                "memories": memories,
-                "count": len(memories),
-                "exported_at": datetime.utcnow().isoformat()
-            }
-            
+            # Stream JSON — avoids holding full response body in memory
+            exported_at = datetime.utcnow().isoformat()
+
+            def json_stream():
+                yield f'{{"exported_at":"{exported_at}","count":{len(memories)},"memories":['
+                for i, m in enumerate(memories):
+                    m_copy = dict(m)
+                    if isinstance(m_copy.get("created_at"), datetime):
+                        m_copy["created_at"] = m_copy["created_at"].isoformat()
+                    if isinstance(m_copy.get("updated_at"), datetime):
+                        m_copy["updated_at"] = m_copy["updated_at"].isoformat()
+                    yield json.dumps(m_copy, default=str)
+                    if i < len(memories) - 1:
+                        yield ","
+                yield "]}"
+
+            from fastapi.responses import StreamingResponse
+            return StreamingResponse(
+                json_stream(),
+                media_type="application/json",
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error exporting memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to export memories")
-
 
 @router.post("/cache/invalidate")
 async def invalidate_user_cache(user_id: str = Depends(get_current_user_id)):
