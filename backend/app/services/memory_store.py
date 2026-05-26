@@ -199,7 +199,13 @@ async def search_memories(
     Returns a list of memory dicts sorted by relevance.
     """
     collection = _get_collection(user_id)
-    query_embedding = get_embedding(query)
+    try:
+        query_embedding = get_embedding(query)
+    except Exception:
+        logger.warning(
+            "Embedding generation unavailable; returning empty search results."
+        )
+        return []
 
     # Build ChromaDB where clause
     # ChromaDB doesn't support MongoDB-style operators like $gte

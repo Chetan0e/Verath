@@ -134,3 +134,21 @@ async def get_current_user_id(
             detail="Invalid or expired token",
         )
     return username
+
+async def get_current_user(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> Dict[str, str]:
+    """
+    Backward-compatible auth dependency wrapper.
+
+    Returns user context dict expected by older route handlers.
+    """
+    username = await verify_access_token(creds.credentials)
+
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    return {"username": username}

@@ -187,3 +187,17 @@ class MemoryLifecycleManager:
             return {"short_term": 0, "long_term": 0, "archived": 0}
 
 memory_lifecycle_manager = MemoryLifecycleManager()
+
+# ── Backward compatibility helper export ────────────────────────────────────
+
+def determine_lifecycle(importance: float) -> str:
+    """
+    Backward-compatible lifecycle determination helper.
+
+    Preserves older lifecycle classification API expected by tests
+    and integrations.
+    """
+    if importance >= MemoryLifecycleManager.IMPORTANCE_THRESHOLD:
+        return "long_term"
+
+    return "short_term"

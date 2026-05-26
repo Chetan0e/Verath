@@ -39,15 +39,16 @@ async def query(
         paginated_sources = result.get("sources", [])[start_idx:end_idx]
         
         return {
-            **result,
-            "sources": paginated_sources,
-            "pagination": {
-                "total": total_sources,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": total_pages
-            }
-        }
+    **result,
+    "confidence": result.get("confidence_score", 0.0),
+    "sources": paginated_sources,
+    "pagination": {
+        "total": total_sources,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages
+    }
+}
     except HTTPException:
         raise
     except Exception as e:
