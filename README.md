@@ -463,14 +463,29 @@ npm run preview
 
 ### Step 6 — Mobile (optional)
 
-Edit `mobile/services/api.js`:
-
-```javascript
-const BASE_URL = "http://192.168.1.XXX:8000";  // your LAN IP, not localhost on device
-```
+Create the mobile environment file:
 
 ```bash
 cd mobile
+cp .env.example .env
+```
+
+Set `EXPO_PUBLIC_API_URL` in `mobile/.env` to the backend URL reachable from the target device:
+
+```env
+# Android emulator
+EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
+
+# iOS simulator or web
+# EXPO_PUBLIC_API_URL=http://localhost:8000
+
+# Physical device on the same Wi-Fi
+# EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_IP:8000
+```
+
+Restart Expo after changing `.env`.
+
+```bash
 npm install
 npx expo start
 ```
@@ -633,6 +648,8 @@ Tokens are stored in `localStorage` as `verath_token` and `verath_username`.
 | Timeline | `TimelineScreen.js` | Chronological memories |
 | Settings | `SettingsScreen.js` | API URL, preferences |
 | Tabs | `Tabs.js` | Bottom navigation |
+
+**API configuration:** Mobile API requests use `EXPO_PUBLIC_API_URL` from `mobile/.env`. Start from `mobile/.env.example`; do not edit tracked source files for local backend URLs.
 
 **Offline queue:** Failed API calls are stored in AsyncStorage and retried when the network returns (`mobile/services/offlineQueue.js`).
 
@@ -1292,7 +1309,7 @@ eas build --platform ios
 
 | Symptom | Fix |
 |---------|-----|
-| Mobile cannot connect | Use LAN IP in `api.js`, same Wi‑Fi as PC |
+| Mobile cannot connect | Set `EXPO_PUBLIC_API_URL` in `mobile/.env` to a backend URL reachable from the device, then restart Expo |
 | CORS error in browser | Add frontend origin to `ALLOW_CORS` in production |
 | Dashboard 404 after login | Serve `web/legacy/` via Vite or static host |
 
