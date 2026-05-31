@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
-from app.services.memory_store import get_memory_stats, all_memories
+from app.services.memory_store import get_memory_stats, all_memories, all_memories_filtered
 from app.services.auth import get_current_user_id
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
@@ -95,21 +95,21 @@ async def export_memories(
     """
     try:
         logger.info(f"Exporting memories for user {user_id}, format={format}")
-        
-        # Get all memories
-        memories = await all_memories(user_id, limit=10000)
-        
-        # Apply filters
+
+        # Build MongoDB query filters to avoid loading all documents into memory
+        mongo_query: dict = {"user_id": user_id}
         if intent_filter:
-            memories = [m for m in memories if m.get("metadata", {}).get("intent") == intent_filter]
-        
+            mongo_query["metadata.intent"] = intent_filter
+        date_filter: dict = {}
         if start_date:
-            start_dt = datetime.fromisoformat(start_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) >= start_dt]
-        
+            date_filter["$gte"] = datetime.fromisoformat(start_date)
         if end_date:
-            end_dt = datetime.fromisoformat(end_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) <= end_dt]
+            date_filter["$lte"] = datetime.fromisoformat(end_date)
+        if date_filter:
+            mongo_query["created_at"] = date_filter
+
+        # Fetch only matching documents from MongoDB — no Python-side filtering needed
+        memories = await all_memories_filtered(mongo_query)
         
         if format == "csv":
             # Generate CSV
@@ -142,12 +142,29 @@ async def export_memories(
                 }
             )
         else:
-            # Return JSON
-            return {
-                "memories": memories,
-                "count": len(memories),
-                "exported_at": datetime.utcnow().isoformat()
-            }
+            # Stream JSON response to avoid holding entire dataset in memory
+            import json
+            from fastapi.responses import StreamingResponse
+
+            exported_at = datetime.utcnow().isoformat()
+            count = len(memories)
+
+            def json_stream():
+                yield f'{{"memories": '
+                yield "["
+                for i, m in enumerate(memories):
+                    yield json.dumps(m, default=str)
+                    if i < count - 1:
+                        yield ","
+                yield f'], "count": {count}, "exported_at": "{exported_at}"}}\'
+
+            return StreamingResponse(
+                json_stream(),
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.json"
+                }
+            )
             
     except Exception as e:
         logger.error(f"Error exporting memories: {e}", exc_info=True)
