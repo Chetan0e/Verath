@@ -174,16 +174,13 @@ async def store_memories_batch(
             f"Batch ChromaDB upsert failed for user {user_id}, "
             f"rolling back MongoDB batch insert: {e}"
         )
-
-        # Rollback inserted Mongo documents
         await _memories_collection().delete_many({
             "_id": {"$in": mem_ids}
         })
-
         raise
 
-        logger.info(f"Batch stored {len(items)} memories for user {user_id}")
-        return mem_ids
+    logger.info(f"do i Batch stored {len(items)} memories for user {user_id}")
+    return mem_ids
 
 
 # ── Read / Search ─────────────────────────────────────────────────────────────
