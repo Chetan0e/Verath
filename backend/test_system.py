@@ -171,50 +171,130 @@ def test_summary(token):
         print_result(False, f"Error: {e}")
         return False
 
+def test_speaker_train_unauthenticated():
+    """Test that /speaker/train rejects unauthenticated requests"""
+    print_test("Speaker Train - Unauthenticated (Regression)")
+    try:
+        response = requests.post(
+            f"{BASE_URL}/speaker/train",
+            json={"name": "Alice", "sample_text": "hello"}
+        )
+        if response.status_code == 401:
+            print_result(True, "Unauthenticated request correctly rejected with 401")
+            return True
+        else:
+            print_result(False, f"Expected 401, got {response.status_code}")
+            return False
+    except Exception as e:
+        print_result(False, f"Error: {e}")
+        return False
+
+def test_speaker_profiles_unauthenticated():
+    """Test that /speaker/profiles rejects unauthenticated requests"""
+    print_test("Speaker Profiles - Unauthenticated (Regression)")
+    try:
+        response = requests.get(f"{BASE_URL}/speaker/profiles")
+        if response.status_code == 401:
+            print_result(True, "Unauthenticated request correctly rejected with 401")
+            return True
+        else:
+            print_result(False, f"Expected 401, got {response.status_code}")
+            return False
+    except Exception as e:
+        print_result(False, f"Error: {e}")
+        return False
+
+def test_speaker_train_authenticated(token):
+    """Test that /speaker/train works for authenticated users"""
+    print_test("Speaker Train - Authenticated")
+    try:
+        response = requests.post(
+            f"{BASE_URL}/speaker/train",
+            json={"name": "Alice", "sample_text": "hello"},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print_result(True, f"Voice profile saved: {data.get('name')}")
+            return True
+        else:
+            print_result(False, f"Status code: {response.status_code}, Error: {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Error: {e}")
+        return False
+
+def test_speaker_profiles_authenticated(token):
+    """Test that /speaker/profiles works for authenticated users"""
+    print_test("Speaker Profiles - Authenticated")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/speaker/profiles",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print_result(True, f"Profiles retrieved: {data.get('profiles')}")
+            return True
+        else:
+            print_result(False, f"Status code: {response.status_code}, Error: {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Error: {e}")
+        return False
+
 def main():
     """Run all tests"""
     print("\n" + "="*60)
     print("Verath System Test Suite")
     print("="*60)
-    
+
     # Test 1: Status
     status_ok = test_status()
-    
+
     if not status_ok:
         print("\n❌ Backend is not running. Please start the backend first:")
         print("   cd backend")
         print("   python run.py")
         return
-    
+
     # Test 2: Signup
     username = test_signup()
-    
+
     if not username:
         print("\n❌ Signup failed. Cannot continue with authenticated tests.")
         return
-    
+
     # Test 3: Login
     token = test_login(username)
-    
+
     if not token:
         print("\n❌ Login failed. Cannot continue with authenticated tests.")
         return
-    
+
     # Test 4: Query
     test_query(token)
-    
+
     # Test 5: Statistics
     test_statistics(token)
-    
+
     # Test 6: Timeline
     test_timeline(token)
-    
+
     # Test 7: Insights
     test_insights(token)
-    
+
     # Test 8: Summary
     test_summary(token)
-    
+
+    # Test 9: Speaker auth regression
+    test_speaker_train_unauthenticated()
+    test_speaker_profiles_unauthenticated()
+
+    # Test 10: Speaker authenticated
+    test_speaker_train_authenticated(token)
+    test_speaker_profiles_authenticated(token)
+
     # Final summary
     print("\n" + "="*60)
     print("Test Suite Complete")

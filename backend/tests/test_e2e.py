@@ -197,7 +197,28 @@ class TestE2E:
         assert "exported_at" in data
         print(f"✓ JSON export successful: {data.get('count')} memories")
 
-    async def test_10_delete_memory(self, http_client):
+    async def test_10_export_pdf(self, http_client):
+        """Test PDF export — validates headers, content-type, and PDF magic bytes."""
+        response = await http_client.get(
+            "/export",
+            params={"format": "pdf"},
+            headers={"Authorization": f"Bearer {TestE2E.access_token}"}
+        )
+        assert response.status_code == 200, f"PDF export failed: {response.text}"
+        assert response.headers["content-type"] == "application/pdf", (
+            f"Expected application/pdf, got {response.headers['content-type']}"
+        )
+        content_disposition = response.headers.get("content-disposition", "")
+        assert "attachment" in content_disposition, "Missing Content-Disposition attachment"
+        assert ".pdf" in content_disposition, "Filename missing .pdf extension"
+        assert len(response.content) > 0, "PDF response body is empty"
+        # Validate PDF magic bytes — every valid PDF starts with %PDF
+        assert response.content[:4] == b"%PDF", (
+            f"Response is not a valid PDF (magic bytes: {response.content[:4]})"
+        )
+        print(f"✓ PDF export successful: {len(response.content)} bytes")
+
+    async def test_11_delete_memory(self, http_client):
         """Test memory deletion."""
         if not hasattr(TestE2E, 'memory_id') or not TestE2E.memory_id:
             print("⚠ No memory ID available, skipping delete test")
@@ -210,7 +231,7 @@ class TestE2E:
         assert response.status_code == 200, f"Delete failed: {response.text}"
         print("✓ Memory deleted successfully")
 
-    async def test_11_query_after_delete(self, http_client):
+    async def test_12_query_after_delete(self, http_client):
         """Test query reflects empty state after deletion."""
         response = await http_client.get(
             "/query",
@@ -221,7 +242,7 @@ class TestE2E:
         data = response.json()
         print(f"✓ Query after delete: {len(data.get('sources', []))} sources")
 
-    async def test_12_logout(self, http_client):
+    async def test_13_logout(self, http_client):
         """Test logout and token blacklisting."""
         response = await http_client.post(
             "/auth/logout",
@@ -230,7 +251,7 @@ class TestE2E:
         assert response.status_code == 200, f"Logout failed: {response.text}"
         print("✓ Logout successful")
 
-    async def test_13_token_blacklisted(self, http_client):
+    async def test_14_token_blacklisted(self, http_client):
         """Test that blacklisted token returns 401."""
         response = await http_client.get(
             "/query",

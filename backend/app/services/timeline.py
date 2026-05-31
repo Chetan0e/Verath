@@ -177,3 +177,10 @@ def _get_audio_url(audio_file: str) -> str:
     # Use the configured host and port
     base_url = f"http://{settings.host}:{settings.port}"
     return f"{base_url}/{audio_file}"
+
+async def get_timeline(*args, **kwargs):
+    """
+    Backward-compatible timeline wrapper.
+    """
+    return await get_date_timeline(*args, **kwargs)
+

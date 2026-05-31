@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SplashScreen from "expo-splash-screen";
@@ -16,7 +16,7 @@ import Tabs from "./screens/Tabs";
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
-import { colors, fonts } from "./theme";
+import { colors } from "./theme";
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -44,35 +44,45 @@ export default function App() {
       } catch (e) {
         console.error("Auth check error:", e);
       } finally {
+        // Always mark auth as checked, even on failure
         setAuthChecked(true);
       }
     };
     checkAuth();
   }, []);
 
-  // Hide splash screen when ready
-  const onLayoutRootView = useCallback(async () => {
+  // FIX: Hide splash screen via useEffect — not via onLayout callback.
+  // Previously, hideAsync() was only called inside onLayoutRootView, which
+  // is attached to the root View. But during the loading state, the component
+  // returns a different View WITHOUT onLayout, so hideAsync() would never
+  // fire if loading got stuck — causing an indefinite splash screen hang.
+  // Now hideAsync() is tied directly to state resolution, not layout mounting.
+  useEffect(() => {
     if ((fontsLoaded || fontError) && authChecked) {
-      await SplashScreen.hideAsync();
+      SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError, authChecked]);
 
-  // Loading state
+  // Loading state — splash is still visible, this renders underneath it
   if ((!fontsLoaded && !fontError) || !authChecked) {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.logoMark}>
           <Text style={styles.logoText}>V</Text>
         </View>
-        <ActivityIndicator size="small" color={colors.accentPrimary} style={styles.spinner} />
+        <ActivityIndicator
+          size="small"
+          color={colors.accentPrimary}
+          style={styles.spinner}
+        />
       </View>
     );
   }
 
-  // Auth screens
+  // Auth screens — no onLayout needed anymore
   if (!isAuthenticated) {
     return (
-      <View style={styles.container} onLayout={onLayoutRootView}>
+      <View style={styles.container}>
         {isRegistering ? (
           <RegisterScreen
             onRegisterSuccess={() => setIsRegistering(false)}
@@ -88,9 +98,9 @@ export default function App() {
     );
   }
 
-  // Main app
+  // Main app — no onLayout needed anymore
   return (
-    <View style={styles.container} onLayout={onLayoutRootView}>
+    <View style={styles.container}>
       <NavigationContainer>
         <Tabs onLogout={() => setIsAuthenticated(false)} />
       </NavigationContainer>

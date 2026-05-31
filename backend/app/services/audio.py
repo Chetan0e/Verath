@@ -3,7 +3,10 @@ from pathlib import Path
 import time
 from typing import Optional
 
-import sounddevice as sd
+try:
+    import sounddevice as sd
+except OSError:
+    sd = None
 import numpy as np
 from scipy.io.wavfile import write
 
@@ -11,6 +14,8 @@ from app.config import settings
 
 
 def record_audio(filename: str = "temp.wav", duration: int = None, fs: int = 16000) -> str:
+    if sd is None:
+        raise RuntimeError("PortAudio/sounddevice is not available")
     """Record audio from microphone and save to file."""
     if duration is None:
         duration = settings.default_record_seconds
@@ -34,6 +39,8 @@ def is_silent(audio: np.ndarray, threshold: float = 0.01) -> bool:
 
 def record_until_silence(filename: str = "temp.wav", fs: int = 16000, 
                         silence_threshold: float = 0.01, silence_duration: float = 2.0) -> str:
+    if sd is None:
+        raise RuntimeError("PortAudio/sounddevice is not available")
     """Record until silence is detected."""
     print("Recording... (silence will stop recording)")
     

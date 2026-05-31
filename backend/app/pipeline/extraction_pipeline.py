@@ -321,3 +321,71 @@ Format as JSON:
         return min(boost, 0.5)  # Cap at 0.5
 
 extraction_pipeline = ExtractionPipeline()
+
+# ── Backward compatibility helper exports ───────────────────────────────────
+
+def detect_correction(text: str) -> bool:
+    """
+    Backward-compatible correction detection API.
+    Returns True if correction speech patterns are detected.
+    """
+    has_correction, _ = extraction_pipeline._detect_correction(text)
+    return has_correction
+
+
+def parse_temporal_expression(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Backward-compatible temporal parsing API.
+    Returns parsed temporal entities or None.
+    """
+    result = extraction_pipeline._parse_temporal_entities(text)
+
+    if result.get("dates"):
+        return result
+
+    return None
+
+
+def classify_intent(text: str) -> str:
+    """
+    Backward-compatible intent classification API.
+    """
+    return extraction_pipeline._detect_intent(text)
+
+
+def extract_entities(text: str) -> Dict[str, Any]:
+    """
+    Backward-compatible entity extraction API.
+    """
+    temporal_entities = extraction_pipeline._parse_temporal_entities(text)
+    return extraction_pipeline._extract_entities(text, temporal_entities)
+
+async def summarize_with_llm(text: str) -> str:
+    """
+    Backward-compatible summarization helper expected by legacy tests.
+    """
+
+    result = await extraction_pipeline._llm_refine(
+        text=text,
+        intent="general",
+        entities={},
+    )
+
+    return result.get("summary", text[:100])
+
+async def run_extraction_pipeline(
+    raw_text: str | None = None,
+    text: str | None = None,
+    user_id: str | None = None,
+    **kwargs,
+):
+    """
+    Backward-compatible extraction pipeline wrapper.
+    """
+
+    input_text = raw_text or text
+
+    if input_text is None:
+        raise ValueError("No input text provided")
+
+    return await extraction_pipeline.extract(input_text)

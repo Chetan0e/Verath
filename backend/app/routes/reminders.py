@@ -20,7 +20,7 @@ _bearer = HTTPBearer()
 async def _get_current_user(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
-    username = verify_access_token(creds.credentials)
+    username = await verify_access_token(creds.credentials)
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,6 +58,16 @@ async def get_upcoming(
     Return all pending reminder alerts for the current user
     within the next `hours` hours (default 24).
     """
+    if not (1 <= hours <= 168):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation failed",
+                "message": "hours must be between 1 and 168",
+                "field": "hours",
+                "received": hours
+            }
+        )
     reminders = await get_upcoming_reminders(
         user_id=user,
         hours=hours,
