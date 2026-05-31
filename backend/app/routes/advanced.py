@@ -312,7 +312,7 @@ async def export_memories(
                     yield json.dumps(m, default=str)
                     if i < count - 1:
                         yield ","
-                yield f'], "count": {count}, "exported_at": "{exported_at}"}}\'
+                yield ']' + f', "count": {count}, "exported_at": "{exported_at}"}}'
 
             return StreamingResponse(
                 json_stream(),
