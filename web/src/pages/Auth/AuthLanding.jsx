@@ -231,17 +231,17 @@ const AuthLanding = () => {
           <div className="relative w-full max-w-md">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-3xl blur opacity-20"></div>
 
-            <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
+            <div className="relative p-8 rounded-3xl bg-[#111827]/90 backdrop-blur-xl border border-white/20 shadow-2xl hover:border-primary/40 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
                 <button
                   onClick={() => { setIsLogin(true); setError(''); setSuccess(''); setFieldErrors({}); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-200 hover:text-white hover:bg-white/5'}`}
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => { setIsLogin(false); setError(''); setSuccess(''); setFieldErrors({}); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${!isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${!isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-200 hover:text-white hover:bg-white/5'}`}
                 >
                   Register
                 </button>
@@ -251,7 +251,7 @@ const AuthLanding = () => {
                 <h2 className="text-2xl font-display font-bold text-white mb-2">
                   {isLogin ? 'Welcome back' : 'Create your vault'}
                 </h2>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-300">
                   {isLogin ? 'Enter your credentials to access your memory.' : 'Start capturing your thoughts today.'}
                 </p>
               </div>
@@ -301,7 +301,7 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">
+                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-300 backdrop-blur-sm">
                     Or continue with
                   </span>
                 </div>
