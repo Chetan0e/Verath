@@ -174,16 +174,13 @@ async def store_memories_batch(
             f"Batch ChromaDB upsert failed for user {user_id}, "
             f"rolling back MongoDB batch insert: {e}"
         )
-
-        # Rollback inserted Mongo documents
         await _memories_collection().delete_many({
             "_id": {"$in": mem_ids}
         })
-
         raise
 
-        logger.info(f"Batch stored {len(items)} memories for user {user_id}")
-        return mem_ids
+    logger.info(f"do i Batch stored {len(items)} memories for user {user_id}")
+    return mem_ids
 
 
 # ── Read / Search ─────────────────────────────────────────────────────────────
@@ -345,6 +342,19 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
 
 
 # ── Get all memories ───────────────────────────────────────────────────────────
+async def all_memories_filtered(query: dict) -> List[Dict[str, Any]]:
+    """Get memories matching an arbitrary MongoDB query — used by export endpoint
+    to push intent and date filters into the database instead of Python memory."""
+    col = _memories_collection()
+    cursor = col.find(query).sort("created_at", -1)
+    memories = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
+        memories.append(doc)
+    return memories
+
+
 async def all_memories(user_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
     """Get all memories for a user from MongoDB."""
     col = _memories_collection()
