@@ -68,12 +68,23 @@ async def verify_access_token(token: str) -> Optional[str]:
         return None
 
 
-def verify_refresh_token(token: str) -> Optional[str]:
-    """Returns username if valid refresh token, else None."""
+async def verify_refresh_token(token: str) -> Optional[str]:
+    """Returns username if valid refresh token, else None.
+
+    Also checks the blacklisted_tokens collection so that rotated (or
+    explicitly revoked) refresh tokens cannot be reused.
+    """
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         if payload.get("type") != "refresh":
             return None
+        jti = payload.get("jti")
+        if jti:
+            db = get_db()
+            if db is not None:
+                blacklisted = await db["blacklisted_tokens"].find_one({"jti": jti})
+                if blacklisted:
+                    return None
         return payload.get("sub")
     except JWTError:
         return None
