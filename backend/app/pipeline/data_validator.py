@@ -139,3 +139,20 @@ class DataValidator:
         return text.strip()
 
 data_validator = DataValidator()
+
+
+def validate_text(text: str):
+    """
+    Backward-compatible validation helper expected by legacy tests.
+    """
+
+    sanitized = data_validator.sanitize_input(text)
+
+    is_valid = (
+        data_validator._is_valid_length(sanitized)
+        and not data_validator._is_noise(sanitized)
+    )
+
+    reason = "valid" if is_valid else "invalid"
+
+    return is_valid, reason

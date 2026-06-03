@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 
 const QUEUE_KEY = 'offline_queue';
 
@@ -119,7 +120,6 @@ export const offlineQueue = {
  * Hook to automatically drain queue on app foreground or network restore
  */
 export const setupOfflineQueueListener = (axiosInstance) => {
-  // Listen for app state changes
   const handleAppStateChange = (nextAppState) => {
     if (nextAppState === 'active') {
       console.log('[OfflineQueue] App came to foreground, draining queue');
@@ -127,8 +127,12 @@ export const setupOfflineQueueListener = (axiosInstance) => {
     }
   };
 
-  // Note: This needs to be called from the React Native app component
-  // AppState.addEventListener('change', handleAppStateChange);
+  const subscription = AppState.addEventListener(
+    'change',
+    handleAppStateChange
+  );
 
-  return handleAppStateChange;
+  return () => {
+    subscription.remove();
+  };
 };

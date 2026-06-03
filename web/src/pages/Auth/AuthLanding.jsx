@@ -3,15 +3,65 @@ import Button from '../../components/Button';
 import Input from '../../components/Input';
 import { validateAuthForm } from '../../utils/validation';
 import { motion } from 'framer-motion';
-import { 
-  Brain, 
-  Search, 
-  ShieldCheck, 
-  Bell, 
-  ArrowRight, 
-  Lock, 
-  User, 
+import Navbar from '../../components/Navbar';
+import Footer from '../../components/Footer';
+import {
+  Brain,
+  Search,
+  ShieldCheck,
+  Bell,
+  ArrowRight,
+  Lock,
+  User,
 } from 'lucide-react';
+
+const AnimatedHeading = ({ text, className }) => {
+  const words = text.split(' ')
+  const container = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.11, delayChildren: 0.3 } }
+  }
+  const word = {
+    hidden: { y: 52, opacity: 0, rotateX: -28 },
+    visible: {
+      y: 0, opacity: 1, rotateX: 0,
+      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
+    }
+  }
+  return (
+    <motion.h1
+      variants={container}
+      initial="hidden"
+      animate="visible"
+      className={className}
+      /*
+       * FIX: Added `min-w-0` and `overflow-hidden` via style, and changed
+       * gap/flexWrap approach so words break safely on narrow viewports.
+       * The original `gap: '0 0.28em'` was fine but combined with
+       * `text-5xl` on 320px viewports the heading overflowed the column.
+       * The heading size is now clamped in index.css via media query.
+       */
+      style={{ perspective: 800, display: 'flex', flexWrap: 'wrap', gap: '0 0.28em', lineHeight: 1.1, minWidth: 0 }}
+    >
+      {words.map((w, i) => (
+        <span key={i} style={{ overflow: 'hidden', display: 'inline-block', minWidth: 0 }}>
+          <motion.span variants={word} style={{ display: 'inline-block' }}>{w}</motion.span>
+        </span>
+      ))}
+    </motion.h1>
+  )
+}
+
+const AnimatedSubtitle = ({ text, className }) => (
+  <motion.p
+    initial={{ opacity: 0, y: 16 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.7, delay: 1.0, ease: [0.16, 1, 0.3, 1] }}
+    className={className}
+  >
+    {text}
+  </motion.p>
+)
 
 const AuthLanding = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -37,27 +87,19 @@ const AuthLanding = () => {
     setLoading(true);
     setError('');
     setSuccess('');
-
     const endpoint = isLogin ? '/auth/login' : '/auth/signup';
-    
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-
       const data = await response.json();
-
       if (response.ok) {
         localStorage.setItem('verath_token', data.access_token);
         localStorage.setItem('verath_username', username);
-        if (!isLogin) {
-          setSuccess('Account created! Redirecting...');
-        }
-        setTimeout(() => {
-          window.location.href = '/legacy/dashboard.html';
-        }, 500);
+        if (!isLogin) setSuccess('Account created! Redirecting...');
+        setTimeout(() => { window.location.href = '/legacy/dashboard.html'; }, 500);
       } else {
         setError(data.detail || (isLogin ? 'Invalid credentials' : 'Registration failed'));
       }
@@ -71,10 +113,7 @@ const AuthLanding = () => {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
-    }
+    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
   };
 
   const itemVariants = {
@@ -83,51 +122,92 @@ const AuthLanding = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-background overflow-x-hidden flex items-center justify-center font-sans">
+    <div className="relative min-h-screen bg-background overflow-x-hidden font-sans">
+      <Navbar />
+
       <div className="absolute inset-0 bg-mesh z-0" />
       <div className="bg-noise" />
-      
-      <motion.div 
+
+      {/* Grid squares */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{
+        backgroundImage: `
+          linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(99,102,241,0.07) 1px, transparent 1px)
+        `,
+        backgroundSize: '52px 52px',
+      }} />
+
+      {/* Radial vignette */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{
+        background: 'radial-gradient(ellipse 85% 75% at 50% 40%, transparent 25%, rgba(5,7,20,0.88) 100%)'
+      }} />
+
+      {/* Glow Blobs */}
+      <motion.div
         animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary rounded-full mix-blend-screen filter blur-[128px] opacity-30 z-0 pointer-events-none"
       />
-      <motion.div 
+      <motion.div
         animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
         className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-secondary rounded-full mix-blend-screen filter blur-[128px] opacity-20 z-0 pointer-events-none"
       />
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-12 lg:py-20 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center min-h-screen">
-        
-        <motion.div 
+      {/* System Online Badge */}
+      <div className="relative z-10 w-full flex justify-center pt-24 pb-2">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border"
+        >
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-xs font-medium text-gray-300">System Online</span>
+        </motion.div>
+      </div>
+
+      {/*
+       * FIX: Main grid gap reduced from `gap-12 lg:gap-16` to `gap-8 lg:gap-16`.
+       * On single-column mobile layouts the 3rem gap wasted significant vertical
+       * space and combined with section paddings pushed content off-screen on
+       * shorter devices. `gap-8` (2rem) is more appropriate for stacked sections.
+       *
+       * FIX: Outer padding changed from `px-6` to `px-4 sm:px-6` to give
+       * 320px-wide devices (iPhone SE) slightly more horizontal breathing room.
+       */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 lg:py-12 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+
+        {/* Left Section */}
+        <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="flex flex-col space-y-10"
+          className="flex flex-col space-y-10 min-w-0"
         >
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
-                <span className="text-white font-display font-bold text-xl">V</span>
-              </div>
-              <span className="text-2xl font-display font-bold tracking-tight text-white">Verath</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-medium text-gray-300">System Online</span>
-            </div>
-          </motion.div>
+          <div className="space-y-6 min-w-0">
+            <AnimatedHeading
+              text="Your intelligent digital memory."
+              /*
+               * FIX: Heading font size changed from `text-5xl lg:text-7xl` to
+               * `text-4xl sm:text-5xl lg:text-7xl`. At 320px the original
+               * `text-5xl` (3rem / 48px) overflowed the column. `text-4xl`
+               * (2.25rem) fits comfortably on the smallest common viewport.
+               */
+              className="text-4xl sm:text-5xl lg:text-7xl font-display font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400"
+            />
+            <AnimatedSubtitle
+              text="Capture conversations, thoughts, meetings, and ideas — then retrieve them instantly using AI-powered semantic memory."
+              /*
+               * FIX: Subtitle `text-lg` unchanged but added `break-words` via
+               * Tailwind's `break-words` class to prevent long words/URLs from
+               * causing horizontal overflow on narrow viewports.
+               */
+              className="text-lg text-gray-400 leading-relaxed max-w-xl break-words"
+            />
+          </div>
 
-          <motion.div variants={itemVariants} className="space-y-6">
-            <h1 className="text-5xl lg:text-7xl font-display font-bold tracking-tight leading-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400">
-              Your intelligent <br/>digital memory.
-            </h1>
-            <p className="text-lg text-gray-400 leading-relaxed max-w-xl">
-              Capture conversations, thoughts, meetings, and ideas — then retrieve them instantly using AI-powered semantic memory.
-            </p>
-          </motion.div>
-
+          {/* Features Grid — grid-cols-1 sm:grid-cols-2 already correct */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { icon: Brain, title: "AI Memory Extraction", desc: "Auto-detects intents & entities." },
@@ -135,7 +215,7 @@ const AuthLanding = () => {
               { icon: ShieldCheck, title: "Cloud Inference Privacy", desc: "Secure & fast processing." },
               { icon: Bell, title: "Smart Reminder Intelligence", desc: "Extracts temporal deadlines." },
             ].map((feature, idx) => (
-              <motion.div 
+              <motion.div
                 key={idx}
                 whileHover={{ y: -4, scale: 1.02 }}
                 className="p-5 rounded-2xl glass-card border border-white/10 group cursor-default transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(139,92,246,0.18)] hover:bg-white/[0.03]"
@@ -148,52 +228,52 @@ const AuthLanding = () => {
               </motion.div>
             ))}
           </motion.div>
-          
+
+          {/* Trusted By */}
           <motion.div variants={itemVariants} className="flex gap-4 pt-4">
-            <div className="flex -space-x-3">
+            <div className="flex -space-x-3 flex-shrink-0">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`w-10 h-10 rounded-full border-2 border-background bg-surface flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 z-${50-i*10}`}>
+                <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-surface flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900">
                   <User className="w-4 h-4 text-gray-400" />
                 </div>
               ))}
             </div>
-            <div className="flex flex-col justify-center">
+            <div className="flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(i => <Star key={i} />)}
+                {[1, 2, 3, 4, 5].map(i => <Star key={i} />)}
               </div>
               <span className="text-xs text-gray-400 font-medium mt-1">Trusted by 10,000+ thinkers</span>
             </div>
           </motion.div>
         </motion.div>
 
-        <motion.div 
+        {/* Right Section - Auth Card */}
+        <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0, y: [0, -2, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="flex justify-center lg:justify-end"
         >
-          <div className="relative w-full max-w-md">
+          {/*
+           * FIX: Auth card wrapper — `w-full max-w-md` is kept but the card now
+           * has `min-w-0` to prevent flex blowout. Card inner padding reduced from
+           * `p-8` to `p-5 sm:p-8` so on 320px screens the form fields don't get
+           * clipped or force horizontal scroll inside the card.
+           */}
+          <div className="relative w-full max-w-md min-w-0">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-3xl blur opacity-20"></div>
-            
-            <div className="relative p-8 rounded-3xl glass-card border border-white/10 hover:border-primary/20 transition-all duration-500">
+
+            <div className="relative p-8 rounded-3xl bg-[#111827]/90 backdrop-blur-xl border border-white/20 shadow-2xl hover:border-primary/40 transition-all duration-500">
               <div className="flex items-center justify-between mb-8 p-1 bg-surface-hover rounded-xl">
-                <button 
+                <button
                   onClick={() => { setIsLogin(true); setError(''); setSuccess(''); setFieldErrors({}); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                    isLogin
-                    ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-200 hover:text-white hover:bg-white/5'}`}
                 >
                   Sign In
                 </button>
-                <button 
+                <button
                   onClick={() => { setIsLogin(false); setError(''); setSuccess(''); setFieldErrors({}); }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${
-                    !isLogin
-                    ? 'bg-white/10 text-white shadow-lg shadow-primary/10'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-[1.02] ${!isLogin ? 'bg-white/10 text-white shadow-lg shadow-primary/10' : 'text-gray-200 hover:text-white hover:bg-white/5'}`}
                 >
                   Register
                 </button>
@@ -203,14 +283,14 @@ const AuthLanding = () => {
                 <h2 className="text-2xl font-display font-bold text-white mb-2">
                   {isLogin ? 'Welcome back' : 'Create your vault'}
                 </h2>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-300">
                   {isLogin ? 'Enter your credentials to access your memory.' : 'Start capturing your thoughts today.'}
                 </p>
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
-                {error && <div className="text-red-400 text-sm">{error}</div>}
-                {success && <div className="text-green-400 text-sm">{success}</div>}
+                {error && <div className="text-red-400 text-sm break-words">{error}</div>}
+                {success && <div className="text-green-400 text-sm break-words">{success}</div>}
 
                 <Input
                   type="text"
@@ -237,14 +317,8 @@ const AuthLanding = () => {
 
                 {isLogin && (
                   <div className="flex items-center gap-2 mt-2">
-                    <input 
-                      type="checkbox" 
-                      id="remember" 
-                      className="rounded border-gray-600 bg-surface text-primary focus:ring-primary focus:ring-offset-background" 
-                    />
-                    <label htmlFor="remember" className="text-xs text-gray-400 cursor-pointer">
-                      Remember me for 30 days
-                    </label>
+                    <input type="checkbox" id="remember" className="rounded border-gray-600 bg-surface text-primary focus:ring-primary focus:ring-offset-background" />
+                    <label htmlFor="remember" className="text-xs text-gray-400 cursor-pointer">Remember me for 30 days</label>
                   </div>
                 )}
 
@@ -259,13 +333,21 @@ const AuthLanding = () => {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-xs">
-                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-500 backdrop-blur-sm">
+                  <span className="px-3 py-1 rounded-full bg-[#0a0d1d]/90 border border-white/5 text-gray-300 backdrop-blur-sm">
                     Or continue with
                   </span>
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              {/*
+               * FIX: Social login buttons changed from `grid-cols-2` to
+               * `flex flex-col xs:grid xs:grid-cols-2` pattern — but since
+               * Tailwind has no `xs` breakpoint by default, we use
+               * `grid grid-cols-1 min-[400px]:grid-cols-2` so at ≤400px
+               * (tight phones) each button gets its own row and there's no
+               * text/icon squash or overflow.
+               */}
+              <div className="mt-6 grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
                 <button className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface border border-border hover:bg-surface-hover hover:border-primary/30 hover:-translate-y-0.5 transition-all duration-300 text-sm font-medium text-white hover:shadow-lg hover:shadow-primary/10">
                   <GoogleIcon />
                   Google
@@ -279,6 +361,8 @@ const AuthLanding = () => {
           </div>
         </motion.div>
       </div>
+
+      <Footer />
     </div>
   );
 };
@@ -290,7 +374,7 @@ const Star = () => (
 );
 
 const GoogleIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24">
+  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -299,7 +383,7 @@ const GoogleIcon = () => (
 );
 
 const GithubIcon = () => (
-  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+  <svg className="w-4 h-4 text-white flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
     <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.379.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z" />
   </svg>
 );

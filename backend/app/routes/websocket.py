@@ -70,7 +70,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         from app.services.auth import verify_access_token
-        user_id = verify_access_token(token)
+        user_id = await verify_access_token(token)
         if not user_id:
             await websocket.close(code=4001, reason="Invalid token")
             return

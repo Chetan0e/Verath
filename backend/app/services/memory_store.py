@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -46,13 +46,15 @@ async def store_memory(
     created_at: Optional[datetime] = None
 ) -> str:
     """
-    Store a memory in both MongoDB (full document) and ChromaDB (vector + metadata).
-    Returns the new memory's ID.
+    Store a memory in both MongoDB and ChromaDB.
+
+    If ChromaDB persistence fails after MongoDB insertion,
+    the MongoDB document is rolled back to avoid storage divergence.
     """
+
     mem_id = str(uuid.uuid4())
     timestamp = created_at if created_at else datetime.utcnow()
-    
-    # Sanitize metadata for ChromaDB (no nested dicts, no MongoDB-specific types)
+
     sanitized_metadata = {
         "user_id": user_id,
         "intent": metadata.get("intent", "unknown"),
@@ -61,11 +63,9 @@ async def store_memory(
         "lifecycle": metadata.get("lifecycle", "short_term"),
         "timestamp": timestamp.isoformat(),
     }
-    
-    # Generate embedding
+
     embedding = get_embedding(text)
-    
-    # Store in MongoDB
+
     doc = {
         "_id": mem_id,
         "user_id": user_id,
@@ -75,19 +75,33 @@ async def store_memory(
         "created_at": timestamp,
         "updated_at": timestamp,
     }
-    await _memories_collection().insert_one(doc)
-    
-    # Store in ChromaDB
-    collection = _get_collection(user_id)
-    collection.upsert(
-        ids=[mem_id],
-        embeddings=[embedding],
-        documents=[text],
-        metadatas=[sanitized_metadata]
-    )
-    
-    return mem_id
 
+    collection = _get_collection(user_id)
+
+    # Step 1: insert into MongoDB
+    await _memories_collection().insert_one(doc)
+
+    # Step 2: persist vector state
+    try:
+        collection.upsert(
+            ids=[mem_id],
+            embeddings=[embedding],
+            documents=[text],
+            metadatas=[sanitized_metadata]
+        )
+
+    except Exception as e:
+        logger.error(
+            f"ChromaDB upsert failed for memory {mem_id}, "
+            f"rolling back MongoDB insert: {e}"
+        )
+
+        # Rollback Mongo insert to maintain consistency
+        await _memories_collection().delete_one({"_id": mem_id})
+
+        raise
+
+    return mem_id
 
 async def store_memories_batch(
     user_id: str,
@@ -95,28 +109,28 @@ async def store_memories_batch(
 ) -> List[str]:
     """
     Store multiple memories in batch using batch embedding generation.
-    
+
     Args:
         user_id: User ID
         items: List of dicts with 'text' and 'metadata' keys
-        
+
     Returns:
         List of memory IDs (same order as input)
     """
     if not items:
         return []
-    
+
     # Single item - use regular store
     if len(items) == 1:
         return [await store_memory(user_id, items[0]["text"], items[0]["metadata"])]
-    
+
     timestamp = datetime.utcnow()
     mem_ids = [str(uuid.uuid4()) for _ in items]
     texts = [item["text"] for item in items]
-    
+
     # Batch generate embeddings
     embeddings = await get_embeddings_batch(texts)
-    
+
     # Prepare MongoDB documents
     docs = []
     chroma_metadatas = []
@@ -140,20 +154,32 @@ async def store_memories_batch(
             "updated_at": timestamp,
         })
         chroma_metadatas.append(sanitized_metadata)
-    
-    # Batch insert to MongoDB
-    await _memories_collection().insert_many(docs)
-    
-    # Batch upsert to ChromaDB
+
     collection = _get_collection(user_id)
-    collection.upsert(
-        ids=mem_ids,
-        embeddings=embeddings,
-        documents=texts,
-        metadatas=chroma_metadatas
-    )
-    
-    logger.info(f"Batch stored {len(items)} memories for user {user_id}")
+
+    # Step 1: batch insert into MongoDB
+    await _memories_collection().insert_many(docs)
+
+    # Step 2: batch persist vector state
+    try:
+        collection.upsert(
+            ids=mem_ids,
+            embeddings=embeddings,
+            documents=texts,
+            metadatas=chroma_metadatas
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Batch ChromaDB upsert failed for user {user_id}, "
+            f"rolling back MongoDB batch insert: {e}"
+        )
+        await _memories_collection().delete_many({
+            "_id": {"$in": mem_ids}
+        })
+        raise
+
+    logger.info(f"do i Batch stored {len(items)} memories for user {user_id}")
     return mem_ids
 
 
@@ -170,7 +196,13 @@ async def search_memories(
     Returns a list of memory dicts sorted by relevance.
     """
     collection = _get_collection(user_id)
-    query_embedding = get_embedding(query)
+    try:
+        query_embedding = get_embedding(query)
+    except Exception:
+        logger.warning(
+            "Embedding generation unavailable; returning empty search results."
+        )
+        return []
 
     # Build ChromaDB where clause
     # ChromaDB doesn't support MongoDB-style operators like $gte
@@ -232,13 +264,27 @@ async def update_memory_lifecycle(memory_id: str, user_id: str, new_lifecycle: s
 
 # ── Delete ────────────────────────────────────────────────────────────────────
 async def delete_memory(memory_id: str, user_id: str):
-    """Remove a memory from both stores."""
-    await _memories_collection().delete_one({"_id": memory_id})
+    """
+    Remove a memory from both stores.
+
+    ChromaDB deletion is attempted first to avoid orphaned
+    vector embeddings remaining after MongoDB deletion.
+    """
+
     collection = _get_collection(user_id)
+
+    # Step 1: remove vector state first
     try:
         collection.delete(ids=[memory_id])
+
     except Exception as e:
-        logger.warning(f"ChromaDB delete failed for {memory_id}: {e}")
+        logger.error(
+            f"ChromaDB delete failed for {memory_id}: {e}"
+        )
+        raise
+
+    # Step 2: remove MongoDB document
+    await _memories_collection().delete_one({"_id": memory_id})
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
@@ -260,10 +306,10 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
         "by_speaker": {},
         "recent_count": 0
     }
-    
+
     # Get total count
     stats["total"] = await col.count_documents({"user_id": user_id})
-    
+
     # Get lifecycle stats
     async for doc in col.aggregate(pipeline):
         lifecycle = doc["_id"] or "short_term"
@@ -271,7 +317,7 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
         # Update avg importance if it's the main stat
         if stats["avg_importance"] == 0.0:
              stats["avg_importance"] = doc.get("avg_importance", 0.0)
-    
+
     # Get intent and speaker stats
     pipeline_extras = [
         {"$match": {"user_id": user_id}},
@@ -281,13 +327,14 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
             "recent": [{"$match": {"created_at": {"$gte": datetime.utcnow() - timedelta(days=1)}}}, {"$count": "count"}]
         }}
     ]
-    
-    
+
     async for doc in col.aggregate(pipeline_extras):
         for item in doc.get("by_intent", []):
-            if item["_id"]: stats["by_intent"][item["_id"]] = item["count"]
+            if item["_id"]:
+                stats["by_intent"][item["_id"]] = item["count"]
         for item in doc.get("by_speaker", []):
-            if item["_id"]: stats["by_speaker"][item["_id"]] = item["count"]
+            if item["_id"]:
+                stats["by_speaker"][item["_id"]] = item["count"]
         if doc.get("recent"):
             stats["recent_count"] = doc["recent"][0]["count"]
 
@@ -295,6 +342,19 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
 
 
 # ── Get all memories ───────────────────────────────────────────────────────────
+async def all_memories_filtered(query: dict) -> List[Dict[str, Any]]:
+    """Get memories matching an arbitrary MongoDB query — used by export endpoint
+    to push intent and date filters into the database instead of Python memory."""
+    col = _memories_collection()
+    cursor = col.find(query).sort("created_at", -1)
+    memories = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
+        memories.append(doc)
+    return memories
+
+
 async def all_memories(user_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
     """Get all memories for a user from MongoDB."""
     col = _memories_collection()
@@ -304,4 +364,41 @@ async def all_memories(user_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
         doc["_id"] = str(doc["_id"])
         doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
         memories.append(doc)
+    return memories
+
+async def filtered_memories(
+    user_id: str,
+    intent_filter: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    limit: int = 10000,
+) -> List[Dict[str, Any]]:
+    """
+    Get memories for a user with filters pushed down to MongoDB.
+    Avoids loading the full collection into Python memory before filtering.
+    """
+    col = _memories_collection()
+
+    # Build query at DB level — only matching documents are transferred
+    query: Dict[str, Any] = {"user_id": user_id}
+
+    if intent_filter:
+        query["metadata.intent"] = intent_filter
+
+    if start_date or end_date:
+        date_filter: Dict[str, Any] = {}
+        if start_date:
+            date_filter["$gte"] = start_date
+        if end_date:
+            date_filter["$lte"] = end_date
+        query["created_at"] = date_filter
+
+    cursor = col.find(query).sort("created_at", -1).limit(limit)
+
+    memories = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        doc["timestamp"] = doc.get("created_at", datetime.utcnow()).isoformat()
+        memories.append(doc)
+
     return memories

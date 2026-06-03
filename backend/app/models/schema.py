@@ -55,6 +55,7 @@ class QueryResponse(BaseModel):
             "0.0 = very uncertain, 1.0 = highly confident."
         ),
     )
+    confidence: float | None = None
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────

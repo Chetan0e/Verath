@@ -17,11 +17,16 @@ function subscribeTokenRefresh(callback) {
   refreshSubscribers.push(callback);
 }
 
+function rejectTokenRefresh(error) {
+  refreshSubscribers.forEach((callback) => callback(null, error));
+  refreshSubscribers = [];
+}
+
 /**
  * Execute all pending callbacks with new token
  */
 function onRefreshed(token) {
-  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers.forEach(callback => callback(token, null));
   refreshSubscribers = [];
 }
 
@@ -56,12 +61,13 @@ api.interceptors.response.use(
       if (isRefreshing) {
         // If already refreshing, wait for the refresh to complete
         return new Promise((resolve, reject) => {
-          subscribeTokenRefresh((token) => {
+          subscribeTokenRefresh((token, err) => {
+            if (err) {
+              return reject(err);
+            }
             originalRequest.headers.Authorization = `Bearer ${token}`;
             resolve(api(originalRequest));
           });
-        }).catch((err) => {
-          return Promise.reject(err);
         });
       }
 
@@ -94,6 +100,8 @@ api.interceptors.response.use(
         await AsyncStorage.removeItem("verath_token");
         await AsyncStorage.removeItem("verath_refresh_token");
         await AsyncStorage.removeItem("verath_username");
+        
+        rejectTokenRefresh(refreshError);
         
         // Note: Navigation would need to be handled by the React Native navigation system
         // This is a placeholder - actual implementation would use navigation.navigate('Login')

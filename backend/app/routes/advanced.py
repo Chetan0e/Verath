@@ -1,8 +1,13 @@
+from collections import defaultdict
 from datetime import datetime
+from io import BytesIO, StringIO
+import csv
+
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
-from app.services.memory_store import get_memory_stats, all_memories
+from app.services.memory_store import get_memory_stats, all_memories, all_memories_filtered
 from app.services.auth import get_current_user_id
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
@@ -34,14 +39,14 @@ async def timeline(
     try:
         logger.info(f"Getting timeline for user {user_id}, page {page}, size {page_size}")
         timeline_data = await get_today_timeline(user_id)
-        
+
         # Apply pagination
         total = len(timeline_data)
         total_pages = (total + page_size - 1) // page_size
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         paginated_timeline = timeline_data[start_idx:end_idx]
-        
+
         return {
             "timeline": paginated_timeline,
             "pagination": {
@@ -56,8 +61,8 @@ async def timeline(
         return {"timeline": [], "pagination": {"total": 0, "page": page, "page_size": page_size, "total_pages": 0}}
 
 
-@cached(ttl_seconds=900, key_prefix="insights")  # 15 minutes cache
 @router.get("/insights")
+@cached(ttl_seconds=900, key_prefix="insights")
 async def insights(user_id: str = Depends(get_current_user_id)):
     """Extract key insights from memories."""
     try:
@@ -67,6 +72,7 @@ async def insights(user_id: str = Depends(get_current_user_id)):
     except Exception as e:
         logger.error(f"Error extracting insights: {e}", exc_info=True)
         return {"insights": []}
+
 
 @router.get("/statistics")
 @cached(ttl_seconds=300, key_prefix="stats")  # 5 minutes cache
@@ -83,44 +89,39 @@ async def statistics(user_id: str = Depends(get_current_user_id)):
 
 @router.get("/export")
 async def export_memories(
-    format: str = Query("json", pattern="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv|pdf)$"),
     intent_filter: str = Query(None),
     start_date: str = Query(None),
     end_date: str = Query(None),
     user_id: str = Depends(get_current_user_id)
 ):
     """
-    Export memories in JSON or CSV format.
+    Export memories in JSON, CSV, or PDF format.
     Supports optional intent_filter and date range filtering.
     """
     try:
         logger.info(f"Exporting memories for user {user_id}, format={format}")
-        
-        # Get all memories
-        memories = await all_memories(user_id, limit=10000)
-        
-        # Apply filters
+
+        # Build MongoDB query filters to avoid loading all documents into memory
+        mongo_query: dict = {"user_id": user_id}
         if intent_filter:
-            memories = [m for m in memories if m.get("metadata", {}).get("intent") == intent_filter]
-        
+            mongo_query["metadata.intent"] = intent_filter
+        date_filter: dict = {}
         if start_date:
-            start_dt = datetime.fromisoformat(start_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) >= start_dt]
-        
+            date_filter["$gte"] = datetime.fromisoformat(start_date)
         if end_date:
-            end_dt = datetime.fromisoformat(end_date)
-            memories = [m for m in memories if (m.get("created_at") if isinstance(m.get("created_at"), datetime) else datetime.fromisoformat(m.get("created_at", ""))) <= end_dt]
+            date_filter["$lte"] = datetime.fromisoformat(end_date)
+        if date_filter:
+            mongo_query["created_at"] = date_filter
+
+        # Fetch only matching documents from MongoDB — no Python-side filtering needed
+        memories = await all_memories_filtered(mongo_query)
         
         if format == "csv":
-            # Generate CSV
-            import csv
-            from io import StringIO
-            from fastapi.responses import StreamingResponse
-            
             output = StringIO()
             writer = csv.writer(output)
             writer.writerow(["id", "text", "intent", "importance", "speaker", "timestamp", "summary"])
-            
+
             for m in memories:
                 writer.writerow([
                     m.get("_id", ""),
@@ -131,9 +132,8 @@ async def export_memories(
                     m.get("created_at", ""),
                     m.get("metadata", {}).get("summary", "")
                 ])
-            
+
             output.seek(0)
-            
             return StreamingResponse(
                 iter([output.getvalue()]),
                 media_type="text/csv",
@@ -141,48 +141,191 @@ async def export_memories(
                     "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.csv"
                 }
             )
+
+        # ── PDF ───────────────────────────────────────────────────────────────
+        elif format == "pdf":
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import cm
+            from reportlab.platypus import (
+                HRFlowable,
+                Paragraph,
+                SimpleDocTemplate,
+                Spacer,
+                Table,
+                TableStyle,
+            )
+
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=A4,
+                rightMargin=2 * cm,
+                leftMargin=2 * cm,
+                topMargin=2 * cm,
+                bottomMargin=2 * cm,
+            )
+
+            styles = getSampleStyleSheet()
+            BRAND_DARK = colors.HexColor("#2d2d6b")
+            BRAND_LIGHT = colors.HexColor("#f0f0fa")
+
+            title_style = ParagraphStyle(
+                "VTitle",
+                parent=styles["Heading1"],
+                fontSize=22,
+                spaceAfter=4,
+                textColor=BRAND_DARK,
+            )
+            subtitle_style = ParagraphStyle(
+                "VSubtitle",
+                parent=styles["Normal"],
+                fontSize=9,
+                textColor=colors.grey,
+                spaceAfter=10,
+            )
+            date_header_style = ParagraphStyle(
+                "VDateHeader",
+                parent=styles["Heading2"],
+                fontSize=12,
+                spaceBefore=14,
+                spaceAfter=4,
+                textColor=BRAND_DARK,
+            )
+            body_style = ParagraphStyle(
+                "VBody",
+                parent=styles["Normal"],
+                fontSize=9,
+                leading=13,
+                spaceAfter=3,
+            )
+            meta_style = ParagraphStyle(
+                "VMeta",
+                parent=styles["Normal"],
+                fontSize=8,
+                textColor=colors.grey,
+                spaceAfter=6,
+            )
+
+            elements = []
+
+            # Header block
+            elements.append(Paragraph("Verath Memory Export", title_style))
+            elements.append(Paragraph(
+                f"User: {user_id} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Exported: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Total memories: {len(memories)}",
+                subtitle_style,
+            ))
+            elements.append(HRFlowable(width="100%", thickness=1.5, color=BRAND_DARK))
+            elements.append(Spacer(1, 0.4 * cm))
+
+            # Summary table
+            elements.append(Paragraph("Export Summary", date_header_style))
+            summary_rows = [
+                ["Metric", "Value"],
+                ["Total memories", str(len(memories))],
+                ["Intent filter", intent_filter or "None"],
+                ["Date range", f"{start_date or 'Beginning'} → {end_date or 'Now'}"],
+            ]
+            summary_table = Table(summary_rows, colWidths=[5 * cm, 11 * cm])
+            summary_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), BRAND_DARK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, BRAND_LIGHT]),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            elements.append(summary_table)
+            elements.append(Spacer(1, 0.6 * cm))
+
+            # Memory records grouped by date (newest first)
+            elements.append(Paragraph("Memory Records", date_header_style))
+            elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
+
+            date_groups: dict = defaultdict(list)
+            for m in memories:
+                raw_ts = m.get("created_at", "")
+                try:
+                    if isinstance(raw_ts, datetime):
+                        date_key = raw_ts.strftime("%Y-%m-%d")
+                    else:
+                        date_key = datetime.fromisoformat(str(raw_ts)).strftime("%Y-%m-%d")
+                except Exception:
+                    date_key = "Unknown Date"
+                date_groups[date_key].append(m)
+
+            for date_key in sorted(date_groups.keys(), reverse=True):
+                elements.append(Paragraph(f"&#128197; {date_key}", date_header_style))
+
+                for m in date_groups[date_key]:
+                    meta = m.get("metadata", {})
+                    text = m.get("text", "")
+                    intent = meta.get("intent", "general")
+                    importance = meta.get("importance", 0.0)
+                    speaker = meta.get("speaker", "unknown")
+                    summary_text = meta.get("summary", "")
+
+                    elements.append(Paragraph(
+                        f"<b>[{intent.upper()}]</b> &nbsp; Importance: <b>{round(float(importance) * 100)}%</b>"
+                        f" &nbsp;|&nbsp; Speaker: <b>{speaker}</b>",
+                        meta_style,
+                    ))
+                    elements.append(Paragraph(text, body_style))
+                    if summary_text:
+                        elements.append(Paragraph(f"<i>&#x2192; {summary_text}</i>", meta_style))
+                    elements.append(HRFlowable(
+                        width="100%", thickness=0.3, color=colors.HexColor("#e0e0e0")
+                    ))
+                    elements.append(Spacer(1, 0.1 * cm))
+
+            doc.build(elements)
+            buffer.seek(0)
+
+            return StreamingResponse(
+                buffer,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.pdf"
+                }
+            )
+
+        # ── JSON (default) ────────────────────────────────────────────────────
         else:
-            # Return JSON
-            return {
-                "memories": memories,
-                "count": len(memories),
-                "exported_at": datetime.utcnow().isoformat()
-            }
+            # Stream JSON response to avoid holding entire dataset in memory
+            import json
+            from fastapi.responses import StreamingResponse
+
+            exported_at = datetime.utcnow().isoformat()
+            count = len(memories)
+
+            def json_stream():
+                yield f'{{"memories": '
+                yield "["
+                for i, m in enumerate(memories):
+                    yield json.dumps(m, default=str)
+                    if i < count - 1:
+                        yield ","
+                yield ']' + f', "count": {count}, "exported_at": "{exported_at}"}}'
+
+            return StreamingResponse(
+                json_stream(),
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.json"
+                }
+            )
             
     except Exception as e:
         logger.error(f"Error exporting memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to export memories")
 
-
-@router.post("/cache/invalidate")
-async def invalidate_user_cache(user_id: str = Depends(get_current_user_id)):
-    """
-    Invalidate cache for the current user (admin endpoint).
-    Clears all cached data for this user.
-    """
-    invalidate_cache(pattern=user_id)
-    return {"message": f"Cache invalidated for user {user_id}"}
-
-
-@router.get("/cache/stats")
-async def cache_stats():
-    """Get cache statistics (admin endpoint)."""
-    return get_cache_stats()
-
-
-@router.get("/graph")
-@cached(ttl_seconds=600, key_prefix="graph")  # 10 minutes cache
-async def memory_graph(
-    limit: int = Query(100, ge=1, le=500),
-    user_id: str = Depends(get_current_user_id)
-):
-    """
-    Get memory graph for visualization.
-    Returns nodes (memories) and edges (connections based on shared entities).
-    """
-    try:
-        graph_data = await build_memory_graph(user_id, limit=limit)
-        return graph_data
     except Exception as e:
-        logger.error(f"Error building memory graph: {e}", exc_info=True)
-        return {"nodes": [], "links": []}
+        logger.error(f"Error exporting memories: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to export memories")

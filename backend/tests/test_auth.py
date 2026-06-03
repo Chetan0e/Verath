@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock
 from fastapi import status
+from app.services.auth import create_access_token, verify_access_token
 
 
 class TestAuth:
@@ -113,3 +114,16 @@ class TestAuth:
             json={"username": "user6", "password": "password123"}
         )
         # With proper limiter mock, this would return 429
+
+    async def test_verify_access_token_rejects_blacklisted_jti(self, monkeypatch):
+        """Test that access tokens are rejected once their JTI is blacklisted."""
+        token = create_access_token("testuser")
+        mock_blacklist = AsyncMock(return_value={"jti": "blocked"})
+        mock_db = {"blacklisted_tokens": type("BlacklistCollection", (), {"find_one": mock_blacklist})()}
+
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+
+        username = await verify_access_token(token)
+
+        assert username is None
+        mock_blacklist.assert_awaited_once()

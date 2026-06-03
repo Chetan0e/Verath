@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.services.query_engine import run_query
 from app.models.schema import QueryResponse
-from app.services.auth import verify_access_token, get_current_user_id
+from app.services.auth import get_current_user_id
 from app.core.logging_config import logger
 
 router = APIRouter()
@@ -39,15 +39,16 @@ async def query(
         paginated_sources = result.get("sources", [])[start_idx:end_idx]
         
         return {
-            **result,
-            "sources": paginated_sources,
-            "pagination": {
-                "total": total_sources,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": total_pages
-            }
-        }
+    **result,
+    "confidence": result.get("confidence_score", 0.0),
+    "sources": paginated_sources,
+    "pagination": {
+        "total": total_sources,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages
+    }
+}
     except HTTPException:
         raise
     except Exception as e:

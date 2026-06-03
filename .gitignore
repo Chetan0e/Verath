@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 .env.production
+mobile/.env
+mobile/.env.local
+mobile/.env.*.local
+mobile/.env.production
 # --- Python ---
 __pycache__/
 *.py[cod]
