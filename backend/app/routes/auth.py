@@ -115,14 +115,15 @@ async def refresh(request: Request, body: RefreshRequest):
         old_exp = old_payload.get("exp")
         if old_jti and old_exp:
             db = get_db()
-            await db["blacklisted_tokens"].insert_one({
-                "jti": old_jti,
-                "exp": datetime.fromtimestamp(old_exp),
-                "blacklisted_at": datetime.utcnow(),
-                "username": username,
-                "reason": "refresh_rotation",
-            })
-    except JWTError:
+            if db is not None:
+                await db["blacklisted_tokens"].insert_one({
+                    "jti": old_jti,
+                    "exp": datetime.fromtimestamp(old_exp),
+                    "blacklisted_at": datetime.utcnow(),
+                    "username": username,
+                    "reason": "refresh_rotation",
+                })
+    except (JWTError, Exception):
         pass  # Token was already validated above; decoding won't fail here
     
     await _log_auth_event(username, ip_address, "refresh", True)
