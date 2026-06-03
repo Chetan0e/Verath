@@ -7,12 +7,12 @@ from ..services.auth import get_current_user
 router = APIRouter()
 
 @router.post("/train")
-def train_voice(payload: VoiceTrainRequest, _: dict = Depends(get_current_user)):
+def train_voice(payload: VoiceTrainRequest, user: dict = Depends(get_current_user)):
     sample = payload.sample_text or payload.name
     embedding = get_embedding(sample)
-    add_voice(payload.name, embedding)
+    add_voice(user["username"], payload.name, embedding)
     return {"msg": "voice profile saved", "name": payload.name}
 
 @router.get("/profiles")
-def list_profiles(_: dict = Depends(get_current_user)):
-    return {"profiles": get_voice_profiles()}
+def list_profiles(user: dict = Depends(get_current_user)):
+    return {"profiles": get_voice_profiles(user["username"])}

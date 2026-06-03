@@ -15,9 +15,11 @@ VOICE_DB_JSON = settings.voice_db_path.replace('.pkl', '.json')
 if os.path.exists(VOICE_DB_JSON):
     with open(VOICE_DB_JSON, "r") as file:
         data = json.load(file)
-        voice_profiles: Dict[str, List[float]] = {k: v for k, v in data.items()}
+        voice_profiles: Dict[str, Dict[str, List[float]]] = {
+    k: v for k, v in data.items()
+}
 else:
-    voice_profiles: Dict[str, List[float]] = {}
+    voice_profiles: Dict[str, Dict[str, List[float]]] = {}
 
 
 def save():
@@ -26,10 +28,15 @@ def save():
         json.dump(voice_profiles, file)
 
 
-def add_voice(name: str, embedding: List[float]) -> bool:
+def add_voice(
+    user_id: str,
+    name: str,
+    embedding: List[float]
+) -> bool:
     """Add a new voice profile."""
     try:
-        voice_profiles[name.lower()] = embedding
+        voice_profiles.setdefault(user_id, {})
+        voice_profiles[user_id][name.lower()] = embedding
         save()
         print(f"✅ Added voice profile for '{name}'")
         return True
@@ -38,26 +45,37 @@ def add_voice(name: str, embedding: List[float]) -> bool:
         return False
 
 
-def add_voice_from_text(name: str, text_sample: str) -> bool:
+def add_voice_from_text(
+    user_id: str,
+    name: str,
+    text_sample: str
+) -> bool:
     """Add voice profile from text sample."""
     try:
         embedding = get_embedding(text_sample)
-        return add_voice(name, embedding)
+        return add_voice(user_id, name, embedding)
     except Exception as e:
         print(f"❌ Error processing voice sample: {e}")
         return False
 
 
-def identify_voice(embedding: List[float], threshold: float = 0.8) -> str:
+def identify_voice(
+    user_id: str,
+    embedding: List[float],
+    threshold: float = 0.8
+) -> str:
     """Identify voice from embedding."""
-    if not voice_profiles:
+
+    user_profiles = voice_profiles.get(user_id, {})
+
+    if not user_profiles:
         return "unknown"
 
     best_match = "unknown"
     best_score = -1.0
     query = np.array(embedding, dtype="float32")
 
-    for name, stored_embedding in voice_profiles.items():
+    for name, stored_embedding in user_profiles.items():
         # Convert stored list back to numpy array
         stored = np.array(stored_embedding, dtype="float32")
         # Calculate cosine similarity
@@ -72,22 +90,33 @@ def identify_voice(embedding: List[float], threshold: float = 0.8) -> str:
     return best_match
 
 
-def get_voice_profiles() -> List[str]:
+def get_voice_profiles(user_id: str) -> List[str]:
     """Get list of all trained voice names."""
-    return list(voice_profiles.keys())
+    return list(voice_profiles.get(user_id, {}).keys())
 
-
-def remove_voice_profile(name: str) -> bool:
+def remove_voice_profile(user_id: str, name: str) -> bool:
     """Remove a voice profile."""
     name_lower = name.lower()
-    if name_lower in voice_profiles:
-        del voice_profiles[name_lower]
+
+    if (
+        user_id in voice_profiles
+        and name_lower in voice_profiles[user_id]
+    ):
+        del voice_profiles[user_id][name_lower]
         save()
         print(f"✅ Removed voice profile for '{name}'")
         return True
+
     return False
 
-
-def update_voice_profile(name: str, text_sample: str) -> bool:
+def update_voice_profile(
+    user_id: str,
+    name: str,
+    text_sample: str
+) -> bool:
     """Update existing voice profile."""
-    return add_voice_from_text(name, text_sample)  # Same logic, just overwrites
+    return add_voice_from_text(
+        user_id,
+        name,
+        text_sample
+    )
