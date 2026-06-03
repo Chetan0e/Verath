@@ -600,3 +600,22 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    // Ctrl + K → focus search/query input
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        const queryInput =
+            document.querySelector('input[type="text"]') ||
+            document.querySelector('textarea');
+
+        if (queryInput) {
+            queryInput.focus();
+        }
+    }
+
+    // R → start/stop recording
+    if (e.key.toLowerCase() === 'r') {
+        triggerRecord();
+    }
+});
