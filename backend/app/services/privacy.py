@@ -21,7 +21,8 @@ async def toggle_privacy(user_id: str) -> bool:
     # Persist to MongoDB
     await db["users"].update_one(
         {"username": user_id},
-        {"$set": {"privacy_enabled": new_state}}
+        {"$set": {"privacy_enabled": new_state}},
+        upsert=True
     )
 
     # Update in-memory cache

@@ -57,3 +57,24 @@ class TestPrivacy:
         await toggle_privacy(user_id)
         privacy._PRIVATE_MODES.clear()
         assert await is_private(user_id) is False
+        
+    async def test_toggle_privacy_for_nonexistent_user_persists_correctly(self):
+        """Verify privacy toggle works even if user doc doesn't exist yet in MongoDB."""
+        from app.services import privacy
+        user_id = "nonexistent_user_test"
+
+        # Clear cache
+        privacy._PRIVATE_MODES.pop(user_id, None)
+
+        # Toggle — should create the field via upsert
+        state = await toggle_privacy(user_id)
+        assert state is True
+
+        # Clear cache and re-read from MongoDB
+        privacy._PRIVATE_MODES.clear()
+        assert await is_private(user_id) is True
+
+        # Cleanup
+        from app.services.database import get_db
+        db = get_db()
+        await db["users"].delete_one({"username": user_id})
