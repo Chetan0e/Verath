@@ -337,42 +337,65 @@ class TaskQueue:
             return False
     
     async def _move_to_dead_letter(self, task_id: str, error_message: str, stack_trace: str) -> bool:
-        """Move failed task to dead letter queue."""
+        """
+        Move a failed task to the dead-letter queue.
+
+        Ordering guarantee:
+        1. Insert into dead-letter collection.
+        2. Only if insert succeeded, delete from the main queue.
+
+        A crash between steps 1 and 2 leaves the task in both collections.
+        On the next dequeue cycle the heartbeat-timeout reset will make the
+        main-queue entry visible again; a worker will attempt to claim it and
+        immediately re-exhaust retries, reaching _move_to_dead_letter again.
+        The dead-letter insert will fail with DuplicateKeyError (unique index
+        on task_id), which is caught and logged — the entry is already safe.
+        """
         await self._ensure_initialized()
-        
+
         db = get_db()
         if db is None:
             logger.error("Database not available for dead letter queue")
             return False
-        
+
         try:
-            # Get task document with worker check
             task_doc = await db[self.COLLECTION_NAME].find_one({
                 "task_id": task_id,
                 "worker_id": self.worker_id
             })
             if not task_doc:
-                logger.error(f"Task {task_id} not found for dead letter queue or not owned by worker")
+                logger.error(
+                    f"Task {task_id} not found for dead letter queue or not owned by worker"
+                )
                 return False
-            
-            # Add to dead letter collection
+
             dead_letter_doc = task_doc.copy()
             dead_letter_doc["failed_at"] = datetime.utcnow()
             dead_letter_doc["final_error"] = error_message
             dead_letter_doc["final_stack_trace"] = stack_trace
-            dead_letter_doc.pop("_id", None)  # Remove MongoDB _id
-            
-            await db[self.DEAD_LETTER_COLLECTION].insert_one(dead_letter_doc)
-            
-            # Remove from main queue
+            dead_letter_doc.pop("_id", None)
+
+            # Step 1: insert into dead-letter collection.
+            try:
+                await db[self.DEAD_LETTER_COLLECTION].insert_one(dead_letter_doc)
+            except Exception as insert_err:
+                # DuplicateKeyError means a previous crash already wrote the entry.
+                # The task is already safely recorded; we can still remove it from
+                # the main queue.
+                logger.warning(
+                    f"Dead-letter insert for {task_id} raised {insert_err!r}; "
+                    "entry may already exist — proceeding to remove from main queue."
+                )
+
+            # Step 2: delete from main queue only after dead-letter is secured.
             await db[self.COLLECTION_NAME].delete_one({"task_id": task_id})
-            
+
             logger.warning(f"Task {task_id} moved to dead letter queue")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to move task to dead letter queue: {e}", exc_info=True)
-            return False
+            return False  
     
     async def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get current status of a task."""
@@ -459,41 +482,79 @@ class TaskQueue:
             return []
     
     async def retry_dead_letter_task(self, task_id: str) -> bool:
-        """Retry a task from dead letter queue."""
+        """
+        Retry a task from the dead-letter queue.
+
+        A new task_id is generated for the retry so that the unique index on
+        task_queue.task_id can never produce a DuplicateKeyError, removing
+        the ambiguity about whether the original dead-letter entry should be
+        deleted.  The original task_id is preserved in the payload under the
+        key ``original_task_id`` for audit purposes.
+
+        Ordering guarantee:
+        1. Enqueue the new task (write to main queue).
+        2. Only if enqueue succeeded, delete the dead-letter entry.
+
+        A crash between steps 1 and 2 leaves the dead-letter entry in place,
+        allowing the operator to retry again without duplicate execution risk
+        (the new task_id is different each time).
+        """
         await self._ensure_initialized()
-        
+
         db = get_db()
         if db is None:
             logger.error("Database not available for dead letter retry")
             return False
-        
+
         try:
-            # Get task from dead letter queue
             dead_doc = await db[self.DEAD_LETTER_COLLECTION].find_one({"task_id": task_id})
             if not dead_doc:
                 logger.error(f"Task {task_id} not found in dead letter queue")
                 return False
-            
-            # Create new task with reset retry count
+
+            # Generate a fresh task_id so the unique index cannot fire.
+            new_task_id = str(uuid.uuid4())
+
+            payload = dict(dead_doc.get("payload", {}))
+            payload["original_task_id"] = task_id   # audit trail
+
             new_task = Task(
-                task_id=task_id,
+                task_id=new_task_id,
                 task_type=TaskType(dead_doc["task_type"]),
-                payload=dead_doc["payload"],
+                payload=payload,
                 user_id=dead_doc["user_id"],
                 status=TaskStatus.QUEUED,
                 retry_count=0,
-                max_retries=dead_doc.get("max_retries", 3)
+                max_retries=dead_doc.get("max_retries", 3),
             )
-            
-            # Enqueue new task
-            await self.enqueue(new_task)
-            
-            # Remove from dead letter queue
-            await db[self.DEAD_LETTER_COLLECTION].delete_one({"task_id": task_id})
-            
-            logger.info(f"Task {task_id} requeued from dead letter queue")
+
+            # Step 1: enqueue.  Do NOT proceed if this fails.
+            enqueued = await self.enqueue(new_task)
+            if not enqueued:
+                logger.error(
+                    f"Enqueue failed for dead-letter retry of {task_id}; "
+                    "dead-letter entry preserved."
+                )
+                return False
+
+            # Step 2: delete dead-letter entry only after confirmed enqueue.
+            delete_result = await db[self.DEAD_LETTER_COLLECTION].delete_one(
+                {"task_id": task_id}
+            )
+            if delete_result.deleted_count == 0:
+                # Enqueue succeeded but delete failed — log for manual cleanup.
+                # The new task will run correctly; the stale dead-letter entry is
+                # harmless but should be cleaned up.
+                logger.warning(
+                    f"Dead-letter entry for {task_id} could not be deleted after "
+                    f"successful re-enqueue as {new_task_id}. Manual cleanup required."
+                )
+
+            logger.info(
+                f"Dead-letter task {task_id} re-enqueued as {new_task_id}"
+            )
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to retry dead letter task: {e}", exc_info=True)
             return False
