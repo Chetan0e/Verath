@@ -147,17 +147,19 @@ class MemoryLifecycleManager:
             if db is None:
                 return
             
-            # Find important short-term memories
             cursor = db.memories.find({
                 "user_id": user_id,
                 "lifecycle_stage": "short_term",
-                "importance": {"$gte": self.IMPORTANCE_THRESHOLD}
+                "metadata.importance": {"$gte": self.IMPORTANCE_THRESHOLD}   # was top-level "importance"
             })
             
             promoted_count = 0
             async for mem in cursor:
-                await self.promote_to_long_term(user_id, mem["_id"])
-                promoted_count += 1
+                importance = mem.get("metadata", {}).get("importance", 0.0)  
+                if importance >= self.IMPORTANCE_THRESHOLD:
+                    await self.promote_to_long_term(user_id, mem["_id"])
+                else:
+                    await self.archive_memory(user_id, mem["_id"])
             
             if promoted_count > 0:
                 logger.info(f"Auto-promoted {promoted_count} memories for user {user_id}")

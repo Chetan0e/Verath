@@ -60,7 +60,7 @@ async def store_memory(
         "intent": metadata.get("intent", "unknown"),
         "speaker": metadata.get("speaker", "unknown"),
         "importance": metadata.get("importance", 0.0),
-        "lifecycle": metadata.get("lifecycle", "short_term"),
+        "importance_category": metadata.get("importance_category", "low"),
         "timestamp": timestamp.isoformat(),
     }
 
@@ -71,6 +71,7 @@ async def store_memory(
         "user_id": user_id,
         "text": text,
         "metadata": metadata,
+        "lifecycle_stage": "short_term",
         "embedding": embedding,
         "created_at": timestamp,
         "updated_at": timestamp,
@@ -141,7 +142,7 @@ async def store_memories_batch(
             "intent": metadata.get("intent", "unknown"),
             "speaker": metadata.get("speaker", "unknown"),
             "importance": metadata.get("importance", 0.0),
-            "lifecycle": metadata.get("lifecycle", "short_term"),
+            "importance_category": metadata.get("importance_category", "low"),
             "timestamp": timestamp.isoformat(),
         }
         docs.append({
@@ -149,6 +150,7 @@ async def store_memories_batch(
             "user_id": user_id,
             "text": texts[i],
             "metadata": metadata,
+            "lifecycle_stage": "short_term",
             "embedding": embeddings[i],
             "created_at": timestamp,
             "updated_at": timestamp,
@@ -248,15 +250,23 @@ async def update_memory_lifecycle(memory_id: str, user_id: str, new_lifecycle: s
     col = _memories_collection()
     await col.update_one(
         {"_id": memory_id},
-        {"$set": {"metadata.lifecycle": new_lifecycle, "updated_at": datetime.utcnow()}}
+        {
+            "$set": {
+                "lifecycle_stage": new_lifecycle,          # top-level canonical field
+                "updated_at": datetime.utcnow(),
+            }
+        }
     )
 
     collection = _get_collection(user_id)
     try:
-        existing = collection.get(ids=[memory_id], include=["metadatas", "documents", "embeddings"])
+        existing = collection.get(
+            ids=[memory_id],
+            include=["metadatas", "documents", "embeddings"]
+        )
         if existing["ids"]:
             meta = existing["metadatas"][0]
-            meta["lifecycle"] = new_lifecycle
+            meta["lifecycle_stage"] = new_lifecycle        # keep Chroma in sync
             collection.update(ids=[memory_id], metadatas=[meta])
     except Exception as e:
         logger.warning(f"ChromaDB lifecycle update failed for {memory_id}: {e}")

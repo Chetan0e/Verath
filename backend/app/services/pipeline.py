@@ -97,18 +97,18 @@ async def process_audio(file_path: str, user_id: str, timestamp: Optional[str] =
         
         memory_id = await store_memory(
             user_id=user_id,
-            text=text,  # Store original full text instead of cleaned text
+            text=text,
             created_at=created_at,
             metadata={
                 "intent": intent,
                 "speaker": primary_speaker,
                 "importance": final_importance,
-                "lifecycle": importance_category,
+                "importance_category": importance_category, 
                 "entities": entities,
                 "summary": summary,
                 "has_correction": has_correction,
                 "importance_boost": importance_boost,
-                "cleaned_text": cleaned_text,  # Store cleaned text in metadata for reference
+                "cleaned_text": cleaned_text,
                 "audio_file": file_path,
             }
         )
