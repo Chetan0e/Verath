@@ -36,6 +36,26 @@ async def record(payload: RecordRequest, user_id: str = Depends(get_current_user
         logger.error(f"Unexpected error in record: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal processing error")
 
+ALLOWED_AUDIO_MIME_TYPES = {
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/webm",
+    "audio/ogg",
+    "audio/flac",
+    "audio/x-flac",
+    "audio/aac",
+    "audio/x-m4a",
+}
+
+ALLOWED_AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".mp4", ".webm", ".ogg", ".flac", ".aac", ".m4a"
+}
+
+
 @router.post("/record/upload")
 async def upload_record(
     file: UploadFile = File(...),
@@ -45,7 +65,25 @@ async def upload_record(
     """Process an audio file uploaded from the mobile app."""
     try:
         logger.info(f"Received audio upload from user {user_id}")
-        
+
+        # Validate MIME type — reject non-audio files before writing to disk
+        content_type = (file.content_type or "").lower().split(";")[0].strip()
+        if content_type not in ALLOWED_AUDIO_MIME_TYPES:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Unsupported file type '{content_type}'. "
+                       f"Allowed types: {', '.join(sorted(ALLOWED_AUDIO_MIME_TYPES))}",
+            )
+
+        # Validate file extension as a second layer of defence
+        file_ext = Path(file.filename or "").suffix.lower()
+        if file_ext not in ALLOWED_AUDIO_EXTENSIONS:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Unsupported file extension '{file_ext}'. "
+                       f"Allowed extensions: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}",
+            )
+
         # Create a temporary path for the uploaded file
         temp_dir = Path("data/uploads")
         temp_dir.mkdir(parents=True, exist_ok=True)
