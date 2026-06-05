@@ -49,11 +49,35 @@ async def upload_record(
         # Create a temporary path for the uploaded file
         temp_dir = Path("data/uploads")
         temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        file_path = temp_dir / f"upload_{user_id}_{os.urandom(4).hex()}.wav"
-        
+
+        # Enforce a 50MB file size limit — read the entire upload into
+        # memory in chunks before writing to disk so oversized files are
+        # rejected without filling the disk. shutil.copyfileobj has no
+        # size limit and would write gigabytes before any check ran.
+        MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+        chunks = []
+        total_bytes = 0
+        chunk_size = 64 * 1024  # 64 KB read buffer
+
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Maximum allowed size is "
+                           f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                )
+            chunks.append(chunk)
+
+        file_ext = Path(file.filename or "").suffix.lower() or ".wav"
+        file_path = temp_dir / f"upload_{user_id}_{os.urandom(4).hex()}{file_ext}"
+
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            for chunk in chunks:
+                buffer.write(chunk)
             
         # Process the saved file, timestamp
         memory = await process_audio(str(file_path), user_id, timestamp=timestamp)
