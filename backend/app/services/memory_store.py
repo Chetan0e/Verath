@@ -96,6 +96,15 @@ async def store_memory(
             f"rolling back MongoDB insert: {e}"
         )
 
+        # Rollback ChromaDB: remove the vector if it was partially written
+        try:
+            collection.delete(ids=[mem_id])
+        except Exception as chroma_err:
+            logger.error(
+                f"ChromaDB rollback delete also failed for {mem_id}: "
+                f"{chroma_err}"
+            )
+
         # Rollback Mongo insert to maintain consistency
         await _memories_collection().delete_one({"_id": mem_id})
 
@@ -174,6 +183,17 @@ async def store_memories_batch(
             f"Batch ChromaDB upsert failed for user {user_id}, "
             f"rolling back MongoDB batch insert: {e}"
         )
+
+        # Rollback ChromaDB: remove any vectors that were partially written
+        # before the upsert raised. Best-effort — don't mask the original error.
+        try:
+            collection.delete(ids=mem_ids)
+        except Exception as chroma_err:
+            logger.error(
+                f"ChromaDB rollback delete also failed for user {user_id}: "
+                f"{chroma_err}"
+            )
+
         await _memories_collection().delete_many({
             "_id": {"$in": mem_ids}
         })

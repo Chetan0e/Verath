@@ -91,6 +91,7 @@ class TestStoreMemoriesBatch:
 
         mock_chroma_col = MagicMock()
         mock_chroma_col.upsert = MagicMock(side_effect=RuntimeError("ChromaDB down"))
+        mock_chroma_col.delete = MagicMock()
 
         monkeypatch.setattr(
             "app.services.memory_store._memories_collection",
@@ -115,8 +116,16 @@ class TestStoreMemoriesBatch:
         with pytest.raises(RuntimeError, match="ChromaDB down"):
             await store_memories_batch(user_id="test_user", items=items)
 
+        # Verify MongoDB rollback
         mock_col.delete_many.assert_called_once()
         call_filter = mock_col.delete_many.call_args[0][0]
         assert "$in" in call_filter.get("_id", {}), (
             "Rollback delete_many must use $in filter on _id"
+        )
+
+        # Verify ChromaDB rollback — orphaned vectors must be cleaned up
+        mock_chroma_col.delete.assert_called_once()
+        chroma_delete_ids = mock_chroma_col.delete.call_args.kwargs.get("ids")
+        assert chroma_delete_ids is not None and len(chroma_delete_ids) == 2, (
+            "ChromaDB rollback delete must be called with all mem_ids"
         )
