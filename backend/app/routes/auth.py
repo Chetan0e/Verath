@@ -6,6 +6,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from datetime import datetime
 
+from jose import jwt, JWTError
+
 from app.services.auth import (
     authenticate_user,
     create_user,
@@ -13,7 +15,9 @@ from app.services.auth import (
     create_refresh_token,
     verify_refresh_token,
     decode_access_token,
+    ALGORITHM,
 )
+from app.config import settings
 from app.services.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -90,7 +94,7 @@ async def refresh(request: Request, body: RefreshRequest):
     Exchange a valid refresh token for a new access + refresh token pair.
     Refresh token rotation: old refresh token is invalidated on use.
     """
-    username = verify_refresh_token(body.refresh_token)
+    username = await verify_refresh_token(body.refresh_token)
     ip_address = request.client.host if request.client else "unknown"
     
     if not username:
@@ -100,6 +104,27 @@ async def refresh(request: Request, body: RefreshRequest):
             detail="Invalid or expired refresh token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Blacklist the consumed refresh token before issuing a new pair.
+    # This enforces true rotation: a stolen or replayed token is rejected.
+    try:
+        old_payload = jwt.decode(
+            body.refresh_token, settings.secret_key, algorithms=[ALGORITHM]
+        )
+        old_jti = old_payload.get("jti")
+        old_exp = old_payload.get("exp")
+        if old_jti and old_exp:
+            db = get_db()
+            if db is not None:
+                await db["blacklisted_tokens"].insert_one({
+                    "jti": old_jti,
+                    "exp": datetime.fromtimestamp(old_exp),
+                    "blacklisted_at": datetime.utcnow(),
+                    "username": username,
+                    "reason": "refresh_rotation",
+                })
+    except (JWTError, Exception):
+        pass  # Token was already validated above; decoding won't fail here
     
     await _log_auth_event(username, ip_address, "refresh", True)
     

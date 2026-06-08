@@ -1,8 +1,13 @@
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi import status
-from app.services.auth import create_access_token, verify_access_token
+from app.services.auth import (
+    create_access_token,
+    create_refresh_token,
+    verify_access_token,
+    verify_refresh_token,
+)
 
 
 class TestAuth:
@@ -127,3 +132,124 @@ class TestAuth:
 
         assert username is None
         mock_blacklist.assert_awaited_once()
+
+    # ── Refresh-token rotation tests ─────────────────────────────
+
+    async def test_verify_refresh_token_rejects_blacklisted_jti(self, monkeypatch):
+        """Unit: a refresh token whose JTI is in the blacklist must be rejected."""
+        token = create_refresh_token("testuser")
+        mock_blacklist = AsyncMock(return_value={"jti": "some-jti"})
+        mock_db = {
+            "blacklisted_tokens": type(
+                "BlacklistCollection", (), {"find_one": mock_blacklist}
+            )()
+        }
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+
+        result = await verify_refresh_token(token)
+
+        assert result is None
+        mock_blacklist.assert_awaited_once()
+
+    async def test_verify_refresh_token_accepts_non_blacklisted_jti(self, monkeypatch):
+        """Unit: a refresh token not in the blacklist must return the username."""
+        token = create_refresh_token("testuser")
+        mock_blacklist = AsyncMock(return_value=None)  # not blacklisted
+        mock_db = {
+            "blacklisted_tokens": type(
+                "BlacklistCollection", (), {"find_one": mock_blacklist}
+            )()
+        }
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+
+        result = await verify_refresh_token(token)
+
+        assert result == "testuser"
+
+    async def test_refresh_endpoint_blacklists_old_token(self, client: AsyncClient, monkeypatch):
+        """
+        Integration: calling /auth/refresh must write the consumed token's JTI
+        to blacklisted_tokens before issuing the new pair.
+        """
+        inserted_docs = []
+
+        mock_collection = MagicMock()
+        mock_collection.find_one = AsyncMock(return_value=None)  # not yet blacklisted
+        mock_collection.insert_one = AsyncMock(side_effect=lambda doc: inserted_docs.append(doc))
+
+        mock_db = {"blacklisted_tokens": mock_collection}
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        refresh_token = create_refresh_token("testuser")
+
+        response = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "access_token" in data
+        assert "refresh_token" in data
+        # The old token must have been blacklisted
+        assert len(inserted_docs) == 1
+        assert inserted_docs[0]["reason"] == "refresh_rotation"
+        assert "jti" in inserted_docs[0]
+
+    async def test_refresh_endpoint_rejects_already_used_token(self, client: AsyncClient, monkeypatch):
+        """
+        Integration: using the same refresh token twice must return 401 on the second call.
+        """
+        call_count = [0]
+
+        async def mock_find_one(query):
+            # First call (from verify_refresh_token): not blacklisted
+            # Second call (from verify_refresh_token on replay): blacklisted
+            call_count[0] += 1
+            if call_count[0] > 1:
+                return {"jti": "already-used"}
+            return None
+
+        mock_collection = MagicMock()
+        mock_collection.find_one = mock_find_one
+        mock_collection.insert_one = AsyncMock()
+
+        mock_db = {"blacklisted_tokens": mock_collection}
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        refresh_token = create_refresh_token("testuser")
+
+        # First use — must succeed
+        r1 = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+        assert r1.status_code == status.HTTP_200_OK
+
+        # Second use of the *same* token — must be rejected
+        r2 = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+        assert r2.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_logout_still_invalidates_access_token(self, client: AsyncClient, monkeypatch):
+        """
+        Regression: logout must continue to blacklist the access token and return 200.
+        Newly issued refresh tokens must remain valid after logout.
+        """
+        access_token = create_access_token("testuser")
+
+        inserted_docs = []
+        mock_collection = MagicMock()
+        mock_collection.find_one = AsyncMock(return_value=None)
+        mock_collection.insert_one = AsyncMock(side_effect=lambda doc: inserted_docs.append(doc))
+
+        mock_audit = MagicMock()
+        mock_audit.insert_one = AsyncMock()
+
+        mock_db = {"blacklisted_tokens": mock_collection, "audit_logs": mock_audit}
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        response = await client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(inserted_docs) == 1
+        assert inserted_docs[0].get("username") == "testuser"

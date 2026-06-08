@@ -60,8 +60,13 @@ const Footer = () => {
                         </div>
                     </div>
 
-                    {/* Links - 3 columns */}
-                    <div className="grid grid-cols-3 gap-8">
+                    {/*
+                     * FIX: Footer link columns previously used `grid-cols-3` with no
+                     * responsive override. On narrow viewports the three columns squash
+                     * and overflow. Changed to `grid-cols-2 sm:grid-cols-3` so mobile
+                     * gets a comfortable 2-column layout that expands at sm+.
+                     */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-8">
                         {footerLinks.map((section) => (
                             <div key={section.title}>
                                 <h4 className="text-sm font-semibold text-white mb-4">{section.title}</h4>

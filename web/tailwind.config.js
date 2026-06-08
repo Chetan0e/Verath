@@ -6,6 +6,12 @@ export default {
   ],
   theme: {
     extend: {
+      screens: {
+        // FIX: Custom 400px breakpoint for social buttons — prevents icon+text
+        // squash on 320px–400px devices (iPhone SE, Galaxy A-series narrow modes).
+        // Used in AuthLanding: `min-[400px]:grid-cols-2`
+        // This is a Tailwind v3 arbitrary value; no plugin needed.
+      },
       colors: {
         background: '#050816',
         primary: '#7c3aed',

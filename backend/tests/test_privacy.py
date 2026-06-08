@@ -8,7 +8,6 @@ class TestPrivacy:
     async def test_privacy_endpoints_require_authentication(self, client):
         response = await client.get("/privacy/")
         assert response.status_code == 403
-
         response = await client.post("/privacy/toggle")
         assert response.status_code == 403
 
@@ -29,9 +28,53 @@ class TestPrivacy:
 
     async def test_toggle_privacy_helper_flips_state(self):
         user_id = "helper_user"
-        first_state = toggle_privacy(user_id)
-        second_state = toggle_privacy(user_id)
-
+        first_state = await toggle_privacy(user_id)
+        second_state = await toggle_privacy(user_id)
         assert first_state is True
         assert second_state is False
-        assert is_private(user_id) is False
+        assert await is_private(user_id) is False
+
+    async def test_privacy_persists_after_cache_clear(self):
+        """
+        Verify privacy state survives an in-memory cache wipe (simulates server restart).
+        State must be read from MongoDB, not the local dict.
+        """
+        from app.services import privacy
+
+        user_id = "persistence_test_user"
+
+        # Enable privacy and confirm
+        await toggle_privacy(user_id)
+        assert await is_private(user_id) is True
+
+        # Simulate server restart — wipe in-memory cache entirely
+        privacy._PRIVATE_MODES.clear()
+
+        # State must still be True — read from MongoDB now
+        assert await is_private(user_id) is True
+
+        # Cleanup — toggle back off
+        await toggle_privacy(user_id)
+        privacy._PRIVATE_MODES.clear()
+        assert await is_private(user_id) is False
+        
+    async def test_toggle_privacy_for_nonexistent_user_persists_correctly(self):
+        """Verify privacy toggle works even if user doc doesn't exist yet in MongoDB."""
+        from app.services import privacy
+        user_id = "nonexistent_user_test"
+
+        # Clear cache
+        privacy._PRIVATE_MODES.pop(user_id, None)
+
+        # Toggle — should create the field via upsert
+        state = await toggle_privacy(user_id)
+        assert state is True
+
+        # Clear cache and re-read from MongoDB
+        privacy._PRIVATE_MODES.clear()
+        assert await is_private(user_id) is True
+
+        # Cleanup
+        from app.services.database import get_db
+        db = get_db()
+        await db["users"].delete_one({"username": user_id})
