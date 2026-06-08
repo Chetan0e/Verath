@@ -599,4 +599,38 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  var activeTag = document.activeElement.tagName;
+  var isInputFocused = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
+  
+  // Ctrl+K - focus Ask input (jo actual mein exists karta hai)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    var askInput = document.getElementById('ask-input');
+    if (askInput) askInput.focus();
+    return;
+  }
+  
+  if (isInputFocused) return;
+  
+  // R key - Refresh dashboard data
+  if (e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    loadDashboardData();
+    console.log('Dashboard refreshed!');
+  }
+  
+  // S key - Scroll to insights
+  if (e.key === 's' || e.key === 'S') {
+    e.preventDefault();
+    var insights = document.getElementById('section-insights');
+    if (insights) insights.scrollIntoView({ behavior: 'smooth' });
+  }
+  
+  // T key - Go to Timeline
+  if (e.key === 't' || e.key === 'T') {
+    e.preventDefault();
+    navigateTo('timeline');
+  }
+});
