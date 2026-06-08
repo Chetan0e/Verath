@@ -16,6 +16,9 @@ from app.services.auth import (
     verify_refresh_token,
     decode_access_token,
     ALGORITHM,
+    get_lockout_seconds_remaining,
+    register_failed_login,
+    reset_login_attempts,
 )
 from app.config import settings
 from app.services.database import get_db
@@ -68,24 +71,38 @@ async def signup(request: Request, credentials: UserCredentials):
 @limiter.limit("10/minute")
 async def login(request: Request, credentials: UserCredentials):
     username_clean = credentials.username.lower().strip()
-    username = await authenticate_user(username_clean, credentials.password)
     ip_address = request.client.host if request.client else "unknown"
-    
+
+    # Account lockout check (per-account, complements IP rate limiting)
+    lock_seconds = await get_lockout_seconds_remaining(username_clean)
+    if lock_seconds > 0:
+        await _log_auth_event(username_clean, ip_address, "login_locked", False)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Account temporarily locked. Try again in {lock_seconds} seconds.",
+            headers={"Retry-After": str(lock_seconds)},
+        )
+
+    username = await authenticate_user(username_clean, credentials.password)
+
     # Audit log
     await _log_auth_event(username_clean, ip_address, "login", username is not None)
-    
+
     if not username:
+        await register_failed_login(username_clean)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    await reset_login_attempts(username_clean)
+
     return TokenResponse(
         access_token=create_access_token(username),
         refresh_token=create_refresh_token(username),
         username=username,
     )
-
 
 @router.post("/refresh", response_model=TokenResponse)
 @limiter.limit("20/minute")

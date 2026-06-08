@@ -59,6 +59,9 @@ async def create_indexes():
         await db["blacklisted_tokens"].create_index("jti", unique=True)
         await db["blacklisted_tokens"].create_index("exp", expireAfterSeconds=0)  # TTL based on token expiry
 
+        await db["login_attempts"].create_index("username", unique=True)
+        await db["login_attempts"].create_index("locked_until", expireAfterSeconds=0)  # auto-cleanup expired lockouts
+        
         # Audit logs
         await db["audit_logs"].create_index([("username", 1), ("timestamp", -1)])
         await db["audit_logs"].create_index([("event_type", 1), ("timestamp", -1)])

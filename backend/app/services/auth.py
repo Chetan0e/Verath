@@ -12,11 +12,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import settings
 from app.services.database import get_db
 
+
 logger = logging.getLogger(__name__)
 
 _mongo = AsyncIOMotorClient(settings.mongo_uri)
 _db = _mongo[settings.database_name]
 _users_col = _db["users"]
+_login_attempts_col = _db["login_attempts"]
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days in minutes
 REFRESH_TOKEN_EXPIRE_DAYS = 30
@@ -119,6 +121,46 @@ async def authenticate_user(username: str, password: str) -> Optional[str]:
     if not user or not verify_password(password, user["password_hash"]):
         return None
     return username
+
+# ── Account lockout (brute-force protection) ──────────────────────────────────
+async def get_lockout_seconds_remaining(username: str) -> int:
+    """Return seconds remaining on an active lockout, or 0 if not locked."""
+    username = username.lower().strip()
+    record = await _login_attempts_col.find_one({"username": username})
+    if not record:
+        return 0
+    locked_until = record.get("locked_until")
+    if locked_until and locked_until > datetime.utcnow():
+        return int((locked_until - datetime.utcnow()).total_seconds())
+    return 0
+
+
+async def register_failed_login(username: str) -> None:
+    """Record a failed attempt; lock the account once the threshold is hit."""
+    username = username.lower().strip()
+    now = datetime.utcnow()
+    record = await _login_attempts_col.find_one({"username": username})
+    failures = (record.get("failures", 0) if record else 0) + 1
+
+    update = {"failures": failures, "last_failed_at": now}
+    if failures >= settings.login_max_failures:
+        update["locked_until"] = now + timedelta(minutes=settings.login_lockout_minutes)
+        logger.warning(
+            f"AUTH LOCKOUT: account locked - username={username} "
+            f"failures={failures} minutes={settings.login_lockout_minutes}"
+        )
+
+    await _login_attempts_col.update_one(
+        {"username": username},
+        {"$set": update},
+        upsert=True,
+    )
+
+
+async def reset_login_attempts(username: str) -> None:
+    """Clear any failure record on successful authentication."""
+    username = username.lower().strip()
+    await _login_attempts_col.delete_one({"username": username})
 
 
 async def get_user_id_from_username(username: str) -> Optional[str]:

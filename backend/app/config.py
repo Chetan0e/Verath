@@ -45,6 +45,15 @@ class Settings(BaseSettings):
         if v in ("your-super-secret-key", "changeme", "secret"):
             raise ValueError("SECRET_KEY is set to a known insecure default — please change it.")
         return v
+    
+    login_max_failures: int = Field(
+        default=5,
+        description="Failed login attempts before an account is locked"
+    )
+    login_lockout_minutes: int = Field(
+        default=15,
+        description="Account lockout duration in minutes"
+    )
 
     # ── LLM Providers (Groq + Gemini Fallback) ──────────────────────────────────
     groq_api_key: str = Field(default="", description="Groq API Key")
