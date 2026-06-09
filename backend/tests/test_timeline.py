@@ -97,6 +97,15 @@ class TestTimeline:
         recent_timeline = await get_recent_timeline("user_123", hours=24)
         assert len(recent_timeline) == 1
         assert recent_timeline[0]["text"] == "Fallback text only"
-        assert recent_timeline[0]["speaker"] == "unknown"  # get_recent_timeline uses unknown as fallback
+        assert recent_timeline[0]["speaker"] == "You"  # get_recent_timeline uses "You" as fallback
         assert recent_timeline[0]["importance"] == 0.5
         assert recent_timeline[0]["tags"] == []
+
+        # 3. Test get_date_timeline fallbacks
+        date_str = now.strftime("%Y-%m-%d")
+        date_timeline = await get_date_timeline("user_123", date_str)
+        assert len(date_timeline) == 1
+        assert date_timeline[0]["text"] == "Fallback text only"
+        assert date_timeline[0]["speaker"] == "You"  # get_date_timeline uses "You" as fallback
+        assert date_timeline[0]["importance"] == 0.5
+        assert date_timeline[0]["tags"] == []

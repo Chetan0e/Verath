@@ -68,13 +68,13 @@ async def get_date_timeline(user_id: str, date_str: str) -> List[Dict]:
             {
                 "time": _format_timestamp(mem.get('timestamp')),
                 "timestamp": _get_timestamp_seconds(mem.get('timestamp')),
-                "text": mem.get('cleaned_text', mem.get('text', '')),
-                "speaker": mem.get('speaker', 'unknown'),
-                "importance": mem.get('importance', 0.5),
-                "tags": mem.get('tags', []),
-                "intent": mem.get('intent'),
+                "text": mem.get('metadata', {}).get('cleaned_text') or mem.get('text', ''),
+                "speaker": mem.get('metadata', {}).get('speaker') or 'You',
+                "importance": mem.get('metadata', {}).get('importance', 0.5),
+                "tags": mem.get('metadata', {}).get('tags', []),
+                "intent": mem.get('metadata', {}).get('intent'),
                 "id": str(mem.get('_id', idx)),
-                "audio_file": mem.get('audio_file') or mem.get('metadata', {}).get('audio_file')
+                "audio_file": _get_audio_url(mem.get('metadata', {}).get('audio_file'))
             }
             for idx, mem in enumerate(date_memories)
         ]
@@ -112,13 +112,13 @@ async def get_recent_timeline(user_id: str, hours: int = 24) -> List[Dict]:
             {
                 "time": _format_timestamp(mem.get('timestamp')),
                 "timestamp": _get_timestamp_seconds(mem.get('timestamp')),
-                "text": mem.get('cleaned_text', mem.get('text', '')),
-                "speaker": mem.get('speaker', 'unknown'),
-                "importance": mem.get('importance', 0.5),
-                "tags": mem.get('tags', []),
-                "intent": mem.get('intent'),
+                "text": mem.get('metadata', {}).get('cleaned_text') or mem.get('text', ''),
+                "speaker": mem.get('metadata', {}).get('speaker') or 'You',
+                "importance": mem.get('metadata', {}).get('importance', 0.5),
+                "tags": mem.get('metadata', {}).get('tags', []),
+                "intent": mem.get('metadata', {}).get('intent'),
                 "id": str(mem.get('_id', idx)),
-                "audio_file": mem.get('audio_file') or mem.get('metadata', {}).get('audio_file')
+                "audio_file": _get_audio_url(mem.get('metadata', {}).get('audio_file'))
             }
             for idx, mem in enumerate(recent_memories)
         ]
