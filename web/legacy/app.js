@@ -599,38 +599,63 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-// Keyboard shortcuts
+// Keyboard shortcuts with modifier keys
 document.addEventListener('keydown', function(e) {
   var activeTag = document.activeElement.tagName;
   var isInputFocused = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
   
-  // Ctrl+K - focus Ask input (jo actual mein exists karta hai)
+  // Ctrl+Shift+R - Refresh dashboard
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    // Direct refresh function call
+    loadDashboardData();
+    showShortcutNotification('Dashboard refreshed');
+    return;
+  }
+  
+  // Ctrl+Shift+S - Go to Insights
+  if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    // Direct navigateTo call
+    navigateTo('insights');
+    showShortcutNotification('Opened Insights');
+    return;
+  }
+  
+  // Ctrl+Shift+L - Go to Timeline (L for Timeline)
+  if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+    e.preventDefault();
+    navigateTo('timeline');
+    showShortcutNotification('Opened Timeline');
+    return;
+  }
+  
+  // Ctrl+K / Cmd+K - Go to Ask and focus input
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    var askInput = document.getElementById('ask-input');
-    if (askInput) askInput.focus();
+    navigateTo('ask');
+    setTimeout(function() {
+      var askInput = document.getElementById('ask-input');
+      if (askInput) {
+        askInput.focus();
+        showShortcutNotification('Ask ready');
+      }
+    }, 100);
     return;
   }
   
   if (isInputFocused) return;
-  
-  // R key - Refresh dashboard data
-  if (e.key === 'r' || e.key === 'R') {
-    e.preventDefault();
-    loadDashboardData();
-    console.log('Dashboard refreshed!');
-  }
-  
-  // S key - Scroll to insights
-  if (e.key === 's' || e.key === 'S') {
-    e.preventDefault();
-    var insights = document.getElementById('section-insights');
-    if (insights) insights.scrollIntoView({ behavior: 'smooth' });
-  }
-  
-  // T key - Go to Timeline
-  if (e.key === 't' || e.key === 'T') {
-    e.preventDefault();
-    navigateTo('timeline');
-  }
 });
+
+// Helper function to show temporary notification
+function showShortcutNotification(message) {
+  var notification = document.createElement('div');
+  notification.textContent = message;
+  notification.style.cssText = 'position:fixed;bottom:50px;right:20px;background:#333;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.3s;font-family:monospace;z-index:10000;';
+  document.body.appendChild(notification);
+  setTimeout(function() { notification.style.opacity = '1'; }, 10);
+  setTimeout(function() {
+    notification.style.opacity = '0';
+    setTimeout(function() { notification.remove(); }, 300);
+  }, 1500);
+}
