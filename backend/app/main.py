@@ -165,6 +165,21 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from app.core.exceptions import VerathException
+from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
+from app.core.exception_handlers import (
+    global_exception_handler,
+    verath_exception_handler,
+    http_exception_handler,
+    validation_exception_handler
+)
+
+app.add_exception_handler(Exception, global_exception_handler)
+app.add_exception_handler(VerathException, verath_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allow_cors.split(",") if settings.env == "production" else ["*"],

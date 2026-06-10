@@ -15,26 +15,16 @@ router = APIRouter()
 @router.post("/record")
 async def record(payload: RecordRequest, user_id: str = Depends(get_current_user_id)):
     """Record audio and process it through the intelligent extraction pipeline."""
-    try:
-        logger.info(f"Recording audio for user {user_id}")
-        file_path = record_audio(filename=payload.filename, duration=payload.duration)
-        memory = await process_audio(file_path, user_id)
-        
-        return {
-            "success": memory is not None,
-            "memory": memory,
-            "message": "Audio processed successfully" if memory else "Processing failed (Transcription too short or no signal)",
-            "error": None if memory else "Low signal or no speech detected"
-        }
-    except TranscriptionError as e:
-        logger.error(f"Transcription error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except MemoryStorageError as e:
-        logger.error(f"Storage error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected error in record: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal processing error")
+    logger.info(f"Recording audio for user {user_id}")
+    file_path = record_audio(filename=payload.filename, duration=payload.duration)
+    memory = await process_audio(file_path, user_id)
+    
+    return {
+        "success": memory is not None,
+        "memory": memory,
+        "message": "Audio processed successfully" if memory else "Processing failed (Transcription too short or no signal)",
+        "error": None if memory else "Low signal or no speech detected"
+    }
 
 ALLOWED_AUDIO_MIME_TYPES = {
     "audio/wav",
@@ -126,9 +116,7 @@ async def upload_record(
             "message": "Audio processed successfully" if memory else "Processing failed (Transcription too short or no signal)",
             "error": None if memory else "Low signal or no speech detected"
         }
-    except Exception as e:
-        logger.error(f"Error processing uploaded audio: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal processing error")
+
     finally:
         # Ensure file is removed if it still exists
         if 'file_path' in locals() and os.path.exists(file_path):
