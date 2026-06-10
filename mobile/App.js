@@ -21,7 +21,9 @@ import { colors } from "./theme";
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
 
-export default function App() {
+import ErrorBoundary from "./components/ErrorBoundary";
+
+function MainApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -107,6 +109,15 @@ export default function App() {
     </View>
   );
 }
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
+  );
+}
+
 
 const styles = StyleSheet.create({
   container: {
