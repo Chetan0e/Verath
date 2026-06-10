@@ -599,4 +599,63 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+// Keyboard shortcuts with modifier keys
+document.addEventListener('keydown', function(e) {
+  var activeTag = document.activeElement.tagName;
+  var isInputFocused = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
+  
+  // Ctrl+Shift+R - Refresh dashboard
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    // Direct refresh function call
+    loadDashboardData();
+    showShortcutNotification('Dashboard refreshed');
+    return;
+  }
+  
+  // Ctrl+Shift+S - Go to Insights
+  if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    // Direct navigateTo call
+    navigateTo('insights');
+    showShortcutNotification('Opened Insights');
+    return;
+  }
+  
+  // Ctrl+Shift+L - Go to Timeline (L for Timeline)
+  if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+    e.preventDefault();
+    navigateTo('timeline');
+    showShortcutNotification('Opened Timeline');
+    return;
+  }
+  
+  // Ctrl+K / Cmd+K - Go to Ask and focus input
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    navigateTo('ask');
+    setTimeout(function() {
+      var askInput = document.getElementById('ask-input');
+      if (askInput) {
+        askInput.focus();
+        showShortcutNotification('Ask ready');
+      }
+    }, 100);
+    return;
+  }
+  
+  if (isInputFocused) return;
+});
 
+// Helper function to show temporary notification
+function showShortcutNotification(message) {
+  var notification = document.createElement('div');
+  notification.textContent = message;
+  notification.style.cssText = 'position:fixed;bottom:50px;right:20px;background:#333;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.3s;font-family:monospace;z-index:10000;';
+  document.body.appendChild(notification);
+  setTimeout(function() { notification.style.opacity = '1'; }, 10);
+  setTimeout(function() {
+    notification.style.opacity = '0';
+    setTimeout(function() { notification.remove(); }, 300);
+  }, 1500);
+}
