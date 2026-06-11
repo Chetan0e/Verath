@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.services.memory_store import search_memories
-from app.services.reranker import rerank
+from app.services.reranker import async_rerank
 from app.services.groq_service import generate_response
 from app.config import settings
 
@@ -47,7 +47,7 @@ async def run_query(
         }
 
     # ── Step 2: Cross-encoder re-ranking ─────────────────────────────────────
-    reranked = rerank(query=query, candidates=candidates, top_k=min(limit, _N_FINAL))
+    reranked = await async_rerank(query=query, candidates=candidates, top_k=min(limit, _N_FINAL))
 
     # ── Step 3: Build grounded context for LLM ───────────────────────────────
     context_texts = [r["text"] for r in reranked]
