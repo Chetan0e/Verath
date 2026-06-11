@@ -1,6 +1,6 @@
 import re
 from typing import Optional, List
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator 
 from fastapi import HTTPException, status
 from pathlib import Path
 from app.core.logging_config import logger
@@ -10,45 +10,45 @@ class TextInputValidator(BaseModel):
     """Validator for text inputs to prevent injection attacks."""
     text: str
     max_length: int = 10000
-    
-    @field_validator('text')
-    @classmethod
-    def validate_text(cls, v):
-        if not v or not v.strip():
+
+    @model_validator(mode="after")
+    def validate_text(self):
+        if not self.text or not self.text.strip():
             raise ValueError("Text cannot be empty")
-        
-        if len(v) > cls.max_length:
-            raise ValueError(f"Text exceeds maximum length of {cls.max_length}")
-        
+
+        if len(self.text) > self.max_length:
+            raise ValueError(f"Text exceeds maximum length of {self.max_length}")
+
         # Check for potential injection patterns
         dangerous_patterns = [
             r'<script.*?>.*?</script>',
             r'javascript:',
             r'on\w+\s*=',
         ]
-        
+
         for pattern in dangerous_patterns:
-            if re.search(pattern, v, re.IGNORECASE):
+            if re.search(pattern, self.text, re.IGNORECASE):
                 raise ValueError("Text contains potentially dangerous content")
-        
-        return v.strip()
+
+        self.text = self.text.strip()
+        return self
 
 
 class QueryValidator(BaseModel):
     """Validator for query inputs."""
     query: str
     max_length: int = 500
-    
-    @field_validator('query')
-    @classmethod
-    def validate_query(cls, v):
-        if not v or not v.strip():
+
+    @model_validator(mode="after")
+    def validate_query(self):
+        if not self.query or not self.query.strip():
             raise ValueError("Query cannot be empty")
-        
-        if len(v) > cls.max_length:
-            raise ValueError(f"Query exceeds maximum length of {cls.max_length}")
-        
-        return v.strip()
+
+        if len(self.query) > self.max_length:
+            raise ValueError(f"Query exceeds maximum length of {self.max_length}")
+
+        self.query = self.query.strip()
+        return self
 
 
 def sanitize_filename(filename: str) -> str:

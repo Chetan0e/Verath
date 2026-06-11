@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from app.models.schema import VoiceTrainRequest
 from app.services.gemini_embedding import get_embedding
 from app.services.speaker_training import add_voice, get_voice_profiles
-from ..services.auth import get_current_user_id
+from ..services.auth import get_current_user_id, get_current_user
 
 router = APIRouter()
 
