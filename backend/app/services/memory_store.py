@@ -14,28 +14,44 @@ logger = logging.getLogger(__name__)
 
 
 # ── ChromaDB client (persistent, file-backed, concurrent-safe) ──────────────
-_chroma_client = chromadb.PersistentClient(
-    path=settings.vector_db_path,
-    settings=ChromaSettings(anonymized_telemetry=False)
+# ChromaDB client — lazy init to prevent startup crash if path/permissions fail
+_chroma_client = None
+
+def _get_chroma_client():
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(
+            path=settings.vector_db_path,
+            settings=ChromaSettings(anonymized_telemetry=False)
+        )
+    return _chroma_client
 )
 
 
 def _get_collection(user_id: str):
     """Return (or create) a per-user ChromaDB collection."""
     collection_name = f"user_{user_id.replace('-', '_')}"
-    return _chroma_client.get_or_create_collection(
+    return _get_chroma_client().get_or_create_collection(
         name=collection_name,
         metadata={"hnsw:space": "cosine"}
     )
 
 
 # ── MongoDB client ────────────────────────────────────────────────────────────
-_mongo_client = AsyncIOMotorClient(settings.mongo_uri)
-_db = _mongo_client[settings.database_name]
+# MongoDB client — lazy init to prevent startup crash if MongoDB is unavailable
+_mongo_client = None
+_db = None
+
+def _get_db():
+    global _mongo_client, _db
+    if _mongo_client is None:
+        _mongo_client = AsyncIOMotorClient(settings.mongo_uri)
+        _db = _mongo_client[settings.database_name]
+    return _db
 
 
 def _memories_collection():
-    return _db["memories"]
+    return _get_db()["memories"]
 
 
 # ── Write ─────────────────────────────────────────────────────────────────────
