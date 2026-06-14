@@ -39,7 +39,7 @@ async def http_error():
 async def validation_error(item: DummyItem):
     return item
 
-client = TestClient(app)
+client = TestClient(app, raise_server_exceptions=False)
 
 def test_global_exception_handler():
     response = client.get("/error/generic")
