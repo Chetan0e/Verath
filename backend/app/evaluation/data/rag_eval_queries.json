@@ -1,0 +1,22 @@
+[
+  {
+    "query_id": "q_001",
+    "query": "Which company provided the user's VLSI internship?",
+    "expected_memory_ids": ["mem_001"]
+  },
+  {
+    "query_id": "q_002",
+    "query": "What technical areas is the user interested in?",
+    "expected_memory_ids": ["mem_002"]
+  },
+  {
+    "query_id": "q_003",
+    "query": "What open-source utility did the user add for CSV files?",
+    "expected_memory_ids": ["mem_003"]
+  },
+  {
+    "query_id": "q_004",
+    "query": "Which Verilog project involved emergency vehicle priority?",
+    "expected_memory_ids": ["mem_004"]
+  }
+]

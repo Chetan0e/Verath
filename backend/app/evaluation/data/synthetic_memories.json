@@ -1,0 +1,42 @@
+[
+  {
+    "memory_id": "mem_001",
+    "content": "User completed a Digital Electronics and VLSI internship at Codec Technologies and received a certificate and letter of recommendation.",
+    "metadata": {
+      "category": "internship",
+      "date": "2026-06-03",
+      "entities": ["Codec Technologies", "Digital Electronics", "VLSI", "certificate", "letter of recommendation"],
+      "source": "synthetic"
+    }
+  },
+  {
+    "memory_id": "mem_002",
+    "content": "User is interested in IoT, artificial intelligence, machine learning, and open-source contributions.",
+    "metadata": {
+      "category": "profile",
+      "date": "2026-06-02",
+      "entities": ["IoT", "AI", "ML", "open-source"],
+      "source": "synthetic"
+    }
+  },
+  {
+    "memory_id": "mem_003",
+    "content": "User contributed to an open-source project by adding a CSV validation utility for malformed rows and inconsistent columns.",
+    "metadata": {
+      "category": "open_source",
+      "date": "2026-05-25",
+      "entities": ["CSV validation", "open-source", "malformed rows"],
+      "source": "synthetic"
+    }
+  },
+  {
+    "memory_id": "mem_004",
+    "content": "User built a Verilog traffic light controller with emergency vehicle priority using Vivado.",
+    "metadata": {
+      "category": "hardware_project",
+      "date": "2026-05-24",
+      "entities": ["Verilog", "traffic light controller", "Vivado", "emergency vehicle priority"],
+      "source": "synthetic"
+    }
+  }
+]
