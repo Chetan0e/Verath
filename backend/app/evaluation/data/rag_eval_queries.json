@@ -11,12 +11,42 @@
   },
   {
     "query_id": "q_003",
-    "query": "What open-source utility did the user add for CSV files?",
+    "query": "What CSV utility did the user add?",
     "expected_memory_ids": ["mem_003"]
   },
   {
     "query_id": "q_004",
-    "query": "Which Verilog project involved emergency vehicle priority?",
+    "query": "Which project involved emergency vehicle priority?",
     "expected_memory_ids": ["mem_004"]
+  },
+  {
+    "query_id": "q_005",
+    "query": "When is the doctor appointment?",
+    "expected_memory_ids": ["mem_005"]
+  },
+  {
+    "query_id": "q_006",
+    "query": "What groceries need to be bought?",
+    "expected_memory_ids": ["mem_006"]
+  },
+  {
+    "query_id": "q_007",
+    "query": "Who is the project planning meeting with?",
+    "expected_memory_ids": ["mem_007"]
+  },
+  {
+    "query_id": "q_008",
+    "query": "Where is the vacation planned?",
+    "expected_memory_ids": ["mem_008"]
+  },
+  {
+    "query_id": "q_009",
+    "query": "Which assignment must be submitted before Friday evening?",
+    "expected_memory_ids": ["mem_009"]
+  },
+  {
+    "query_id": "q_010",
+    "query": "Which workshop did the user attend in Bhubaneswar?",
+    "expected_memory_ids": ["mem_010"]
   }
 ]
