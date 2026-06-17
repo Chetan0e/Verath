@@ -1,0 +1,145 @@
+# ============================================================================
+# Security & Dependency Scanning — Verath
+# Runs CodeQL SAST, pip-audit, npm audit, and Trivy filesystem scan
+# ============================================================================
+
+name: Security & Dependency Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write  # Required for CodeQL to upload SARIF results
+  actions: read
+
+jobs:
+  # ── CodeQL Static Analysis ─────────────────────────────────────────────────
+  codeql:
+    name: 🔎 CodeQL SAST
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ── Python Dependency Audit ────────────────────────────────────────────────
+  pip-audit:
+    name: 🐍 Python Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on backend
+        run: |
+          pip-audit -r backend/requirements.txt \
+            --format=json \
+            --output=pip-audit-results.json \
+            --ignore-vuln PYSEC-2022-42969 || true
+        continue-on-error: true
+
+      - name: Upload pip-audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-results
+          path: pip-audit-results.json
+          retention-days: 7
+
+  # ── NPM Dependency Audit ───────────────────────────────────────────────────
+  npm-audit:
+    name: 📦 NPM Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Audit web dependencies
+        if: hashFiles('web/package.json') != ''
+        run: |
+          cd web
+          npm install --ignore-scripts 2>/dev/null || true
+          npm audit --audit-level=high --json > ../npm-audit-web.json || true
+
+      - name: Audit mobile dependencies
+        if: hashFiles('mobile/package.json') != ''
+        run: |
+          cd mobile
+          npm install --ignore-scripts 2>/dev/null || true
+          npm audit --audit-level=high --json > ../npm-audit-mobile.json || true
+
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-results
+          path: |
+            npm-audit-web.json
+            npm-audit-mobile.json
+          retention-days: 7
+
+  # ── Trivy Filesystem & Config Scan ────────────────────────────────────────
+  trivy:
+    name: 🛡️ Trivy Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"  # Warn-only on initial setup
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: "trivy-fs"
