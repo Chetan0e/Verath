@@ -7,7 +7,7 @@ from app.models.memory import Memory
 from app.services.transcription import transcribe
 from app.services.gemini_embedding import get_embedding
 from app.services.memory_store import store_memory
-from app.services.importance import score_importance, categorize_importance
+from app.services.importance import categorize_importance
 from app.services.speaker import identify_speakers, get_primary_speaker
 from app.services.privacy import is_private
 from app.pipeline.extraction_pipeline import extraction_pipeline
@@ -62,7 +62,7 @@ async def process_audio(file_path: str, user_id: str, timestamp: Optional[str] =
             primary_speaker = primary_label
         
         # 5. Score importance with boost
-        base_importance = await score_importance(cleaned_text)
+        base_importance = extraction_result['importance']
         final_importance = min(base_importance + importance_boost, 1.0)
         importance_category = categorize_importance(final_importance)
         

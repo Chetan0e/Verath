@@ -94,6 +94,7 @@ class ExtractionPipeline:
                     **refined_data.get("entities", {})
                 },
                 "summary": refined_data.get("summary", ""),
+                "importance": min(max(float(refined_data.get("importance", 0.5)), 0.0), 1.0),
                 "importance_boost": self._calculate_importance_boost(intent, entities)
             }
             
@@ -246,54 +247,57 @@ class ExtractionPipeline:
         return list(set(orgs))[:3]
     
     async def _llm_refine(self, text: str, intent: str, entities: Dict) -> Dict[str, Any]:
-        """Use LLM to refine extraction results."""
-        prompt = f"""Analyze this text and provide a refined extraction:
+        """Use LLM to refine extraction results and score importance in a single structured call."""
+        prompt = f"""Analyze this text and provide a refined extraction.
 
-Text: {text}
+    Text: {text}
 
-Current intent: {intent}
-Current entities: {entities}
+    Current intent: {intent}
+    Current entities: {entities}
 
-Provide:
-1. Refined intent (one of: meeting, deadline, task, commitment, reminder, general)
-2. Refined summary (1-2 sentences)
-3. Any additional entities (people, locations, dates, times)
-
-Format as JSON:
-{{
-    "intent": "...",
-    "summary": "...",
-    "entities": {{
-        "people": [...],
-        "locations": [...],
-        "dates": [...],
-        "times": [...]
+    Return a JSON object with exactly this structure:
+    {{
+        "intent": "one of: meeting, deadline, task, commitment, reminder, general",
+        "summary": "1-2 sentence summary capturing the key information",
+        "importance": 0.0,
+        "entities": {{
+            "people": [],
+            "locations": [],
+            "dates": [],
+            "times": []
+        }}
     }}
-}}"""
-        
+
+    For importance (float 0.0–1.0) consider: deadlines, appointments, action items, commitments, emotional significance, key insights, contact information."""
+
         try:
-            response = await generate_response(prompt)
-            # Parse LLM response (simple JSON extraction)
-            # In production, use proper JSON parsing with error handling
+            response = await generate_response(
+                prompt,
+                response_format={"type": "json_object"},
+            )
             return self._parse_llm_response(response)
         except Exception as e:
             logger.error(f"LLM refinement failed: {e}")
-            return {"intent": intent, "summary": text[:100], "entities": entities}
+            return {
+                "intent": intent,
+                "summary": text[:100],
+                "entities": entities,
+                "importance": 0.5,
+            }
     
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """Parse LLM JSON response."""
-        # Simple JSON extraction - in production use proper JSON parsing
         try:
             import json
-            # Find JSON in response
             start = response.find('{')
             end = response.rfind('}') + 1
             if start != -1 and end > start:
-                json_str = response[start:end]
-                return json.loads(json_str)
-        except:
+                parsed = json.loads(response[start:end])
+                if "importance" in parsed:
+                    parsed["importance"] = min(max(float(parsed["importance"]), 0.0), 1.0)
+                return parsed
+        except Exception:
             pass
-        return {"intent": "general", "summary": response[:100], "entities": {}}
+        return {"intent": "general", "summary": response[:100], "entities": {}, "importance": 0.5}
     
     def _calculate_importance_boost(self, intent: str, entities: Dict) -> float:
         """Calculate importance boost based on intent and entities."""
