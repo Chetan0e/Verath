@@ -34,7 +34,7 @@ sounddevice>=0.4.6
 faster-whisper>=0.10.0
 
 # Optional Speaker Diarization
-pyannote.audio>=3.1.0
+pyannote.audio>=4.0.4
 torch>=2.1.0
 torchaudio>=2.1.0
 
