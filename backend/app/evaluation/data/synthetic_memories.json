@@ -1,0 +1,52 @@
+[
+  {
+    "memory_id": "mem_001",
+    "content": "User completed a Digital Electronics and VLSI internship at Codec Technologies.",
+    "metadata": {"category": "internship", "date": "2026-06-03"}
+  },
+  {
+    "memory_id": "mem_002",
+    "content": "User is interested in IoT, AI, machine learning, and open-source.",
+    "metadata": {"category": "profile"}
+  },
+  {
+    "memory_id": "mem_003",
+    "content": "User added a CSV validation utility for malformed rows and inconsistent columns.",
+    "metadata": {"category": "open_source"}
+  },
+  {
+    "memory_id": "mem_004",
+    "content": "User built a Verilog traffic light controller with emergency vehicle priority.",
+    "metadata": {"category": "project"}
+  },
+  {
+    "memory_id": "mem_005",
+    "content": "Doctor appointment is scheduled for July 14 at 3 PM at City Clinic.",
+    "metadata": {"category": "reminder", "date": "2026-07-14", "location": "City Clinic"}
+  },
+  {
+    "memory_id": "mem_006",
+    "content": "Buy groceries including milk, eggs, and bread on Saturday.",
+    "metadata": {"category": "task"}
+  },
+  {
+    "memory_id": "mem_007",
+    "content": "Meeting with Rahul about project planning is scheduled for Monday.",
+    "metadata": {"category": "meeting", "person": "Rahul"}
+  },
+  {
+    "memory_id": "mem_008",
+    "content": "Vacation is planned in Goa during December.",
+    "metadata": {"category": "travel", "location": "Goa"}
+  },
+  {
+    "memory_id": "mem_009",
+    "content": "Submit DBMS assignment before Friday evening.",
+    "metadata": {"category": "reminder"}
+  },
+  {
+    "memory_id": "mem_010",
+    "content": "User attended an edge computing and Industrial IoT workshop in Bhubaneswar.",
+    "metadata": {"category": "event", "location": "Bhubaneswar"}
+  }
+]
