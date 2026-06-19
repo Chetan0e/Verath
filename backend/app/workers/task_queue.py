@@ -54,32 +54,42 @@ class TaskQueue:
     
     def __init__(self):
         self._initialized = False
+        self._init_lock = asyncio.Lock()
         self.worker_id = str(uuid.uuid4())
     
     async def _ensure_initialized(self):
-        """Ensure MongoDB connection and indexes are initialized."""
-        if self._initialized:
+        """Ensure MongoDB connection and indexes are initialized.
+
+        Uses an asyncio.Lock with a double-checked locking pattern to guarantee
+        that index creation runs exactly once even when multiple coroutines call
+        this method concurrently at startup.
+        """
+        if self._initialized:          # fast path — no lock needed after first init
             return
-        
-        db = get_db()
-        if db is None:
-            raise RuntimeError("Database not available for task queue")
-        
-        # Create indexes for efficient querying
-        try:
-            await db[self.COLLECTION_NAME].create_index([("task_id", 1)], unique=True)
-            await db[self.COLLECTION_NAME].create_index([("status", 1), ("next_retry_at", 1)])
-            await db[self.COLLECTION_NAME].create_index([("user_id", 1)])
-            await db[self.COLLECTION_NAME].create_index([("heartbeat_at", 1)])
-            await db[self.DEAD_LETTER_COLLECTION].create_index([("task_id", 1)], unique=True)
-            await db[self.DEAD_LETTER_COLLECTION].create_index([("user_id", 1)])
-            await db[self.DEAD_LETTER_COLLECTION].create_index([("failed_at", -1)])
-            
-            self._initialized = True
-            logger.info("Task queue initialized with indexes")
-        except Exception as e:
-            logger.error(f"Failed to initialize task queue indexes: {e}", exc_info=True)
-            raise
+
+        async with self._init_lock:
+            if self._initialized:      # re-check: another coroutine may have finished
+                return                 # while we were waiting for the lock
+
+            db = get_db()
+            if db is None:
+                raise RuntimeError("Database not available for task queue")
+
+            # Create indexes for efficient querying
+            try:
+                await db[self.COLLECTION_NAME].create_index([("task_id", 1)], unique=True)
+                await db[self.COLLECTION_NAME].create_index([("status", 1), ("next_retry_at", 1)])
+                await db[self.COLLECTION_NAME].create_index([("user_id", 1)])
+                await db[self.COLLECTION_NAME].create_index([("heartbeat_at", 1)])
+                await db[self.DEAD_LETTER_COLLECTION].create_index([("task_id", 1)], unique=True)
+                await db[self.DEAD_LETTER_COLLECTION].create_index([("user_id", 1)])
+                await db[self.DEAD_LETTER_COLLECTION].create_index([("failed_at", -1)])
+
+                self._initialized = True
+                logger.info("Task queue initialized with indexes")
+            except Exception as e:
+                logger.error(f"Failed to initialize task queue indexes: {e}", exc_info=True)
+                raise
     
     async def enqueue(self, task: Task) -> bool:
         """Enqueue a task for processing."""
