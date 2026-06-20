@@ -1,5 +1,7 @@
 import logging
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -15,6 +17,7 @@ from app.services.auth import (
     create_refresh_token,
     verify_refresh_token,
     decode_access_token,
+    get_current_user,
     ALGORITHM,
     get_lockout_seconds_remaining,
     register_failed_login,
@@ -25,6 +28,8 @@ from app.services.database import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_bearer = HTTPBearer()
 
 # Rate limiting configuration
 limiter = Limiter(key_func=get_remote_address)
@@ -153,46 +158,48 @@ async def refresh(request: Request, body: RefreshRequest):
 
 
 @router.post("/logout")
-async def logout(request: Request):
+async def logout(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+):
     """
     Logout user and invalidate their access token.
     Stores the JWT ID (jti) in the blacklist collection.
+
+    Auth goes through get_current_user, which calls verify_access_token and
+    rejects already-blacklisted tokens (401) — consistent with every other
+    protected route, so a blacklisted token never reaches the insert below.
+    The DuplicateKeyError guard remains as defense-in-depth so a race or
+    repeat never surfaces as an unhandled 500.
     """
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authorization token provided"
-        )
-    
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    
+    payload = decode_access_token(creds.credentials)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail="Invalid token",
         )
-    
+
     jti = payload.get("jti")
     exp = payload.get("exp")
-    username = payload.get("sub")
+    username = current_user["username"]
     ip_address = request.client.host if request.client else "unknown"
-    
-    if jti and exp:
-        # Add to blacklist
-        db = get_db()
-        await db["blacklisted_tokens"].insert_one({
-            "jti": jti,
-            "exp": datetime.fromtimestamp(exp),
-            "blacklisted_at": datetime.utcnow(),
-            "username": username
-        })
-    
-    await _log_auth_event(username, ip_address, "logout", True)
-    
-    return {"message": "Logged out successfully"}
 
+    if jti and exp:
+        db = get_db()
+        try:
+            await db["blacklisted_tokens"].insert_one({
+                "jti": jti,
+                "exp": datetime.fromtimestamp(exp),
+                "blacklisted_at": datetime.utcnow(),
+                "username": username,
+            })
+        except DuplicateKeyError:
+            # Already blacklisted — treat repeat logout as success (idempotent).
+            pass
+
+    await _log_auth_event(username, ip_address, "logout", True)
+    return {"message": "Logged out successfully"}
 
 async def _log_auth_event(username: str, ip_address: str, event_type: str, success: bool):
     """Log authentication events to both file and MongoDB."""
