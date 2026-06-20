@@ -36,7 +36,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
         if (response.data.refresh_token) {
           await AsyncStorage.setItem(REFRESH_KEY, response.data.refresh_token);
         }
-        await AsyncStorage.setItem(USERNAME_KEY, username);
+        await AsyncStorage.setItem(USERNAME_KEY, response.data.username);
         onLoginSuccess();
       } else {
         Alert.alert("Login Failed", "Invalid credentials");
