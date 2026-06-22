@@ -31,7 +31,7 @@ sentence-transformers==2.7.0
 # Audio & Speech Processing
 # =========================
 sounddevice>=0.4.6
-faster-whisper>=0.10.0
+faster-whisper>=1.2.1
 
 # Optional Speaker Diarization
 pyannote.audio>=4.0.4
