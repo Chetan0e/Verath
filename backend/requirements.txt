@@ -24,7 +24,7 @@ reportlab
 # =========================
 # Embeddings & Vector Search
 # =========================
-chromadb>=0.5.0
+chromadb>=1.5.9
 sentence-transformers==2.7.0
 
 # =========================
