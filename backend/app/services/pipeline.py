@@ -10,7 +10,7 @@ from app.services.memory_store import store_memory
 from app.services.importance import score_importance, categorize_importance
 from app.services.speaker import identify_speakers, get_primary_speaker
 from app.services.privacy import is_private
-from app.services.memory_extractor import memory_extractor
+from app.pipeline.extraction_pipeline import extraction_pipeline
 from app.core.exceptions import TranscriptionError, EmbeddingError, MemoryStorageError
 from app.core.logging_config import logger
 
@@ -34,7 +34,7 @@ async def process_audio(file_path: str, user_id: str, timestamp: Optional[str] =
         logger.info(f"Transcribed: {text[:100]}...")
         
         # 2. Intelligent memory extraction
-        extraction_result = await memory_extractor.extract_memory(text)
+        extraction_result = await extraction_pipeline.extract(text)
         cleaned_text = extraction_result['cleaned_text']
         intent = extraction_result['intent']
         entities = extraction_result['entities']
