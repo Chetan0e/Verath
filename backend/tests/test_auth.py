@@ -253,3 +253,63 @@ class TestAuth:
         assert response.status_code == status.HTTP_200_OK
         assert len(inserted_docs) == 1
         assert inserted_docs[0].get("username") == "testuser"
+        
+    # ── Logout blacklist-bypass / crash tests  ──────────
+
+    async def test_logout_rejects_already_blacklisted_token(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """A token whose jti is already blacklisted must be rejected at
+        /logout (401) rather than treated as valid — /logout must go through
+        the same blacklist check as every other protected route."""
+        token = create_access_token("testuser")
+
+        # blacklist lookup returns a hit → token is already revoked
+        mock_blacklist = AsyncMock(return_value={"jti": "blocked"})
+        fake_col = type(
+            "BlacklistCollection", (), {"find_one": mock_blacklist}
+        )()
+        fake_db = {"blacklisted_tokens": fake_col}
+        monkeypatch.setattr("app.services.auth.get_db", lambda: fake_db)
+
+        response = await client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_relogout_does_not_500_on_duplicate(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Re-submitting a token to /logout must not crash with HTTP 500 even
+        if the insert hits the unique-jti index (DuplicateKeyError handled)."""
+        from pymongo.errors import DuplicateKeyError
+
+        token = create_access_token("testuser")
+
+        # Not in blacklist on lookup (so auth passes), but insert raises a
+        # duplicate-key error (simulating a race / repeat).
+        mock_find = AsyncMock(return_value=None)
+        mock_insert = AsyncMock(side_effect=DuplicateKeyError("dup jti"))
+        fake_col = type(
+            "BlacklistCollection",
+            (),
+            {"find_one": mock_find, "insert_one": mock_insert},
+        )()
+        fake_db = {"blacklisted_tokens": fake_col}
+
+        # both the service-layer blacklist check and the route-layer insert
+        # resolve get_db to our fake
+        monkeypatch.setattr("app.services.auth.get_db", lambda: fake_db)
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: fake_db)
+
+        response = await client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        # Must NOT be a 500 — the DuplicateKeyError is caught and logout
+        # succeeds idempotently.
+        assert response.status_code != status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.status_code == status.HTTP_200_OK

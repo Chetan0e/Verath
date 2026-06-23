@@ -10,22 +10,25 @@ class TestMemoryPipeline:
         """Test that text extraction correctly classifies intent."""
         # Mock the memory extractor
         mock_extractor = MagicMock()
-        mock_extractor.extract_memory.return_value = {
+        mock_extractor.extract = AsyncMock(return_value={
+            'raw_text': 'Meeting with the team about the new project',
             'cleaned_text': 'meeting with team about project',
+            'has_correction': False,
             'intent': 'meeting',
             'entities': {
                 'people': ['team'],
-                'topics': ['project'],
-                'dates': []
+                'locations': [],
+                'dates': [],
+                'times': [],
+                'organizations': []
             },
             'summary': 'Discussed project with team',
-            'has_correction': False,
             'importance_boost': 0.0
-        }
-        monkeypatch.setattr("app.services.pipeline.memory_extractor", mock_extractor)
+        })
+        monkeypatch.setattr("app.services.pipeline.extraction_pipeline", mock_extractor)
         
-        from app.services.pipeline import memory_extractor
-        result = memory_extractor.extract_memory("Meeting with the team about the new project")
+        from app.services.pipeline import extraction_pipeline
+        result = await extraction_pipeline.extract("Meeting with the team about the new project")
         
         assert result['intent'] == 'meeting'
         assert 'people' in result['entities']
@@ -34,47 +37,54 @@ class TestMemoryPipeline:
     async def test_text_extraction_entity_extraction(self, monkeypatch):
         """Test that text extraction correctly extracts entities."""
         mock_extractor = MagicMock()
-        mock_extractor.extract_memory.return_value = {
+        mock_extractor.extract = AsyncMock(return_value={
+            'raw_text': 'Meeting with John and Mary tomorrow',
             'cleaned_text': 'meeting with john and mary tomorrow',
+            'has_correction': False,
             'intent': 'meeting',
             'entities': {
-                'people': ['john', 'mary'],
-                'dates': ['tomorrow'],
-                'topics': []
+                'people': ['John', 'Mary'],
+                'dates': [{'phrase': 'tomorrow', 'parsed_date': '2026-06-14T00:00:00', 'is_relative': True}],
+                'locations': [],
+                'times': [],
+                'organizations': []
             },
             'summary': 'Meeting with John and Mary tomorrow',
-            'has_correction': False,
             'importance_boost': 0.1
-        }
-        monkeypatch.setattr("app.services.pipeline.memory_extractor", mock_extractor)
-        
-        from app.services.pipeline import memory_extractor
-        result = memory_extractor.extract_memory("Meeting with John and Mary tomorrow")
-        
+        })
+        monkeypatch.setattr("app.services.pipeline.extraction_pipeline", mock_extractor)
+
+        from app.services.pipeline import extraction_pipeline
+        result = await extraction_pipeline.extract("Meeting with John and Mary tomorrow")
+
         assert 'john' in [p.lower() for p in result['entities']['people']]
         assert 'mary' in [p.lower() for p in result['entities']['people']]
-        assert 'tomorrow' in result['entities']['dates']
+        date_phrases = [d['phrase'] if isinstance(d, dict) else d for d in result['entities']['dates']]
+        assert 'tomorrow' in date_phrases
 
     async def test_text_extraction_correction_detection(self, monkeypatch):
         """Test that text extraction detects corrections."""
         mock_extractor = MagicMock()
-        mock_extractor.extract_memory.return_value = {
+        mock_extractor.extract = AsyncMock(return_value={
+            'raw_text': 'The meeting is at 3pm not 2pm',
             'cleaned_text': 'the meeting is at 3pm not 2pm',
+            'has_correction': True,
             'intent': 'meeting',
             'entities': {
-                'dates': ['3pm'],
                 'people': [],
-                'topics': ['meeting']
+                'dates': [{'phrase': '3pm', 'parsed_date': '2026-06-13T15:00:00', 'is_relative': False}],
+                'locations': [],
+                'times': [],
+                'organizations': []
             },
             'summary': 'Meeting at 3pm (corrected from 2pm)',
-            'has_correction': True,
             'importance_boost': 0.2
-        }
-        monkeypatch.setattr("app.services.pipeline.memory_extractor", mock_extractor)
-        
-        from app.services.pipeline import memory_extractor
-        result = memory_extractor.extract_memory("The meeting is at 3pm not 2pm")
-        
+        })
+        monkeypatch.setattr("app.services.pipeline.extraction_pipeline", mock_extractor)
+
+        from app.services.pipeline import extraction_pipeline
+        result = await extraction_pipeline.extract("The meeting is at 3pm not 2pm")
+
         assert result['has_correction'] == True
         assert result['importance_boost'] > 0
 

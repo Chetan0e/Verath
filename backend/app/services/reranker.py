@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List, Dict, Any
 
@@ -62,3 +63,17 @@ def rerank(
         item["confidence"] = round(1 / (1 + math.exp(-item["rerank_score"])), 3)
 
     return top
+
+async def async_rerank(
+    query: str,
+    candidates: List[Dict[str, Any]],
+    top_k: int = 5,
+) -> List[Dict[str, Any]]:
+    """
+    Async wrapper around rerank().
+
+    Offloads the CPU-bound cross-encoder forward pass to the default
+    ThreadPoolExecutor so the asyncio event loop stays free to handle
+    other requests concurrently.
+    """
+    return await asyncio.to_thread(rerank, query, candidates, top_k)

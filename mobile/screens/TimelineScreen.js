@@ -31,11 +31,16 @@ export default function TimelineScreen() {
   };
 
   const onRefresh = async () => {
-    setRefreshing(true);
+  setRefreshing(true);
+  try {
     const data = await getTimeline();
     setEvents(data.timeline || []);
+  } catch (e) {
+    setError('Failed to refresh timeline');
+  } finally {
     setRefreshing(false);
-  };
+  }
+};
 
   const playAudio = async (audioFile, eventId) => {
     try {
