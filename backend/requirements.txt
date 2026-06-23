@@ -63,7 +63,7 @@ python-multipart>=0.0.32
 # Networking & Reliability
 # =========================
 requests>=2.31.0
-httpx==0.27.0
+httpx==0.28.1
 tenacity==8.2.3
 slowapi>=0.1.10
 
