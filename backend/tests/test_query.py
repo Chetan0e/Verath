@@ -72,3 +72,61 @@ class TestQuery:
             headers=auth_headers
         )
         assert response.status_code == 200
+    
+    async def test_post_query_with_history_passes_turns_to_engine(
+        self, client: AsyncClient, monkeypatch, auth_headers
+    ):
+        """POST /query forwards history turns to run_query."""
+        captured = {}
+
+        async def mock_run_query(**kwargs):
+            captured.update(kwargs)
+            return {
+                "answer": "The first one is at 3 PM.",
+                "context": [],
+                "sources": [],
+                "confidence_score": 0.85,
+            }
+
+        monkeypatch.setattr("app.routes.query.run_query", mock_run_query)
+
+        response = await client.post(
+            "/query",
+            json={
+                "q": "What time is the first one?",
+                "history": [
+                    {"role": "user", "content": "What meetings do I have?"},
+                    {"role": "assistant", "content": "You have a meeting at 3 PM."},
+                ],
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["answer"] == "The first one is at 3 PM."
+        assert len(captured["history"]) == 2
+        assert captured["history"][0]["role"] == "user"
+
+    async def test_post_query_without_history_still_works(
+        self, client: AsyncClient, monkeypatch, auth_headers
+    ):
+        """POST /query with no history field is backward compatible."""
+        async def mock_run_query(**kwargs):
+            return {
+                "answer": "You have a meeting at 3 PM.",
+                "context": [],
+                "sources": [],
+                "confidence_score": 0.7,
+            }
+
+        monkeypatch.setattr("app.routes.query.run_query", mock_run_query)
+
+        response = await client.post(
+            "/query",
+            json={"q": "What meetings do I have?"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert "answer" in response.json()

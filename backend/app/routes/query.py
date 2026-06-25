@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.services.query_engine import run_query
-from app.models.schema import QueryResponse
+from app.models.schema import QueryResponse, QueryRequest
 from app.services.auth import get_current_user_id
 from app.core.logging_config import logger
 
@@ -49,6 +49,39 @@ async def query(
         "total_pages": total_pages
     }
 }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in query: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal query error")
+
+_HISTORY_TURNS = 6
+
+
+@router.post("/query", response_model=QueryResponse)
+async def query_with_history(
+    body: QueryRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Query the memory system with optional session conversation history."""
+    try:
+        logger.info(f"Query from user {user_id}: {body.q[:50]}...")
+        result = await run_query(
+            user_id=user_id,
+            query=body.q,
+            limit=body.limit,
+            intent_filter=body.intent_filter,
+            min_importance=body.min_importance,
+            history=[{"role": t.role, "content": t.content} for t in body.history[-_HISTORY_TURNS:]],
+        )
+
+        logger.info(f"Query result sources count: {len(result.get('sources', []))}")
+
+        return {
+            **result,
+            "confidence": result.get("confidence_score", 0.0),
+            "sources": result.get("sources", []),
+        }
     except HTTPException:
         raise
     except Exception as e:

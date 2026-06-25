@@ -26,6 +26,8 @@ const SUGGESTIONS = [
   "What did I commit to this week?"
 ];
 
+const HISTORY_TURNS = 6;
+
 const Message = ({ text, isUser, sources, confidence }) => {
   return (
     <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
@@ -77,13 +79,17 @@ export default function AskScreen({ navigation }) {
 
     const userQuery = query.trim();
     setQuery('');
-    
+
     setMessages(prev => [...prev, { id: Date.now(), text: userQuery, isUser: true }]);
     setLoading(true);
     scrollToBottom();
 
+    const history = messages
+      .slice(-HISTORY_TURNS)
+      .map(m => ({ role: m.isUser ? 'user' : 'assistant', content: m.text }));
+
     try {
-      const response = await askQuestion(userQuery);
+      const response = await askQuestion(userQuery, { history });
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         text: response.answer || "I couldn't find an answer to that question.",
