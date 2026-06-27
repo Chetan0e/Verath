@@ -1,4 +1,5 @@
 import re
+import json
 import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
@@ -162,25 +163,32 @@ class MemoryExtractor:
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
-    
-    async def summarize_memory(self, text: str, intent: Optional[str] = None) -> str:
-        """Generate a concise summary of the memory using LLM."""
-        intent_context = f" Intent: {intent}" if intent else ""
-        
-        prompt = f"""Summarize this text into a single, clear sentence that captures the key information:{intent_context}
 
-Text: "{text}"
-
-Return only the summary sentence, nothing else."""
-        
+    async def _combined_llm_call(self, text: str, intent: Optional[str] = None) -> Dict:
+        """Single LLM call returning both summary and importance score."""
+        intent_context = f" The text intent is: {intent}." if intent else ""
+        prompt = f"""Analyze this text and return ONLY a valid JSON object:{intent_context}
+    Text: "{text}"
+    Return exactly this structure:
+    {{
+      "summary": "<one clear sentence capturing the key information>",
+      "importance": <float between 0.0 and 1.0>
+    }}
+    For importance consider: deadlines, appointments, action items, commitments, emotional significance, key insights, contact information."""
         try:
-            summary = await generate_response(prompt)
-            return summary.strip()
-        except Exception as e:
-            logger.error(f"Error generating summary: {e}")
-            # Fallback: return first sentence
+            response = await generate_response(prompt, response_format={"type": "json_object"})
+            cleaned = re.sub(r'```(?:json)?\s*|\s*```', '', response).strip()
+            parsed = json.loads(cleaned)
+            summary = str(parsed.get("summary", "")).strip()
+            importance = min(max(float(parsed.get("importance", 0.5)), 0.0), 1.0)
+            if not summary:
+                raise ValueError("Empty summary returned by LLM")
+            return {"summary": summary, "importance": importance}
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            logger.warning(f"Combined LLM call parsing failed ({e}), using fallbacks")
             sentences = re.split(r'[.!?]+', text)
-            return sentences[0].strip() if sentences else text
+            fallback_summary = sentences[0].strip() if sentences else text
+            return {"summary": fallback_summary, "importance": 0.5}
     
     def resolve_conflicts(self, new_text: str, existing_memories: List[Dict]) -> Tuple[bool, Optional[str]]:
         """
@@ -240,18 +248,21 @@ Return only the summary sentence, nothing else."""
         entities = self.extract_entities(cleaned_text)
         
         # Generate summary
-        summary = await self.summarize_memory(cleaned_text, intent)
+        combined = await self._combined_llm_call(cleaned_text, intent)
+        summary = combined["summary"]
+        llm_importance = combined["importance"]
         
         # Calculate importance boost based on intent and entities
         importance_boost = self._calculate_importance_boost(intent, entities)
         
-        logger.info(f"Memory extracted - Intent: {intent}, Summary: {summary}")
+        logger.info(f"Memory extracted - Intent: {intent}, Summary: {summary}, LLM Importance: {llm_importance:.2f}")
         
         return {
             'cleaned_text': cleaned_text,
             'intent': intent,
             'entities': entities,
             'summary': summary,
+            'importance': llm_importance,
             'has_correction': has_correction,
             'importance_boost': importance_boost
         }
