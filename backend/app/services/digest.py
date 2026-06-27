@@ -1,21 +1,30 @@
 import logging
-from datetime import datetime
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient
-
-from app.config import settings
+from app.services.database import get_db
 from app.services.summarizer import generate_period_summary
 
 logger = logging.getLogger(__name__)
 
-_mongo = AsyncIOMotorClient(settings.mongo_uri)
-_db = _mongo[settings.database_name]
-_digests_col = _db["digests"]
-_users_col = _db["users"]
-
 # Default digest window: one week
 DEFAULT_WINDOW_HOURS = 168
+
+
+async def _get_active_user_ids(window_hours: int) -> List[str]:
+    """Return user_ids with memory activity in the window.
+
+    Uses the same `timestamp` field that the summarizer's timeline query
+    filters on, so we only digest users the summary would actually cover.
+    """
+    db = get_db()
+    if db is None:
+        return []
+    cutoff = datetime.utcnow() - timedelta(hours=window_hours)
+    user_ids = await db["memories"].distinct(
+        "user_id", {"timestamp": {"$gte": cutoff}}
+    )
+    return [str(uid) for uid in user_ids if uid]
 
 
 async def generate_and_store_digest(
@@ -29,32 +38,33 @@ async def generate_and_store_digest(
         "window_hours": window_hours,
         "summary": summary,
     }
-    await _digests_col.insert_one(doc)
+    await get_db()["digests"].insert_one(doc)
     logger.info(f"Stored digest for user {user_id} (window {window_hours}h)")
     return doc
 
 
 async def get_latest_digest(user_id: str) -> Optional[Dict[str, Any]]:
     """Return the most recently generated digest for a user, or None."""
-    return await _digests_col.find_one(
+    return await get_db()["digests"].find_one(
         {"user_id": user_id}, sort=[("generated_at", -1)]
     )
 
 
-async def run_weekly_digests() -> int:
-    """Scheduler job: generate and store a digest for every user.
+async def run_weekly_digests(window_hours: int = DEFAULT_WINDOW_HOURS) -> int:
+    """Scheduler job: generate and store a digest for each active user.
 
-    Returns the number of digests created.
+    Only users with memory activity in the window are processed, so inactive
+    users do not trigger empty digests. Returns the number of digests created.
     """
     count = 0
-    cursor = _users_col.find({}, {"_id": 1})
-    async for user in cursor:
+    active_user_ids = await _get_active_user_ids(window_hours)
+    for user_id in active_user_ids:
         try:
-            await generate_and_store_digest(str(user["_id"]))
+            await generate_and_store_digest(user_id, window_hours=window_hours)
             count += 1
         except Exception as e:
             logger.error(
-                f"Failed to generate digest for user {user.get('_id')}: {e}",
+                f"Failed to generate digest for user {user_id}: {e}",
                 exc_info=True,
             )
     logger.info(f"Weekly digest job complete: {count} digests generated")

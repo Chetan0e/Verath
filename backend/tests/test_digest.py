@@ -23,14 +23,22 @@ class _async_cursor:
         return self
 
 
+def _make_db(collections):
+    """Return a mock db whose [name] indexing yields the given mock collections."""
+    db = MagicMock()
+    db.__getitem__.side_effect = lambda name: collections[name]
+    return db
+
+
 class TestDigestService:
     """Unit tests for the digest service helpers."""
 
     async def test_generate_and_store_digest_persists_summary(self, monkeypatch):
         """generate_and_store_digest should call the summarizer and insert a digest doc."""
-        mock_digests_col = MagicMock()
-        mock_digests_col.insert_one = AsyncMock()
-        monkeypatch.setattr("app.services.digest._digests_col", mock_digests_col)
+        digests = MagicMock()
+        digests.insert_one = AsyncMock()
+        db = _make_db({"digests": digests})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
 
         async def mock_generate_period_summary(user_id, hours=24):
             return "You logged 3 memories this week."
@@ -47,13 +55,14 @@ class TestDigestService:
         assert doc["user_id"] == "test_user"
         assert doc["window_hours"] == 168
         assert doc["summary"] == "You logged 3 memories this week."
-        mock_digests_col.insert_one.assert_called_once()
+        digests.insert_one.assert_called_once()
 
     async def test_generate_and_store_digest_empty_memory_fallback(self, monkeypatch):
         """The summarizer's empty-window string should flow through to the stored digest."""
-        mock_digests_col = MagicMock()
-        mock_digests_col.insert_one = AsyncMock()
-        monkeypatch.setattr("app.services.digest._digests_col", mock_digests_col)
+        digests = MagicMock()
+        digests.insert_one = AsyncMock()
+        db = _make_db({"digests": digests})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
 
         async def mock_generate_period_summary(user_id, hours=24):
             return f"No memories recorded in the last {hours} hours."
@@ -68,7 +77,7 @@ class TestDigestService:
         doc = await generate_and_store_digest("test_user", window_hours=168)
 
         assert "No memories recorded" in doc["summary"]
-        mock_digests_col.insert_one.assert_called_once()
+        digests.insert_one.assert_called_once()
 
     async def test_get_latest_digest_returns_most_recent(self, monkeypatch):
         """get_latest_digest should query by user_id sorted by generated_at desc."""
@@ -78,24 +87,24 @@ class TestDigestService:
             "window_hours": 168,
             "summary": "Latest digest.",
         }
-        mock_digests_col = MagicMock()
-        mock_digests_col.find_one = AsyncMock(return_value=latest)
-        monkeypatch.setattr("app.services.digest._digests_col", mock_digests_col)
+        digests = MagicMock()
+        digests.find_one = AsyncMock(return_value=latest)
+        db = _make_db({"digests": digests})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
 
         from app.services.digest import get_latest_digest
 
         result = await get_latest_digest("test_user")
 
         assert result == latest
-        mock_digests_col.find_one.assert_called_once()
+        digests.find_one.assert_called_once()
 
-    async def test_run_weekly_digests_iterates_all_users(self, monkeypatch):
-        """run_weekly_digests should generate a digest for every user and return the count."""
-        mock_users_col = MagicMock()
-        mock_users_col.find = MagicMock(
-            return_value=_async_cursor([{"_id": "user_1"}, {"_id": "user_2"}])
-        )
-        monkeypatch.setattr("app.services.digest._users_col", mock_users_col)
+    async def test_run_weekly_digests_only_processes_active_users(self, monkeypatch):
+        """run_weekly_digests should only digest users with recent memory activity."""
+        memories = MagicMock()
+        memories.distinct = AsyncMock(return_value=["user_1", "user_2"])
+        db = _make_db({"memories": memories})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
 
         generated_for = []
 
@@ -114,14 +123,27 @@ class TestDigestService:
 
         assert count == 2
         assert generated_for == ["user_1", "user_2"]
+        memories.distinct.assert_called_once()
+
+    async def test_run_weekly_digests_skips_inactive_users(self, monkeypatch):
+        """With no active users, no digests are generated."""
+        memories = MagicMock()
+        memories.distinct = AsyncMock(return_value=[])
+        db = _make_db({"memories": memories})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
+
+        from app.services.digest import run_weekly_digests
+
+        count = await run_weekly_digests()
+
+        assert count == 0
 
     async def test_run_weekly_digests_skips_failing_user(self, monkeypatch):
         """A failure for one user should not stop the others; count reflects successes."""
-        mock_users_col = MagicMock()
-        mock_users_col.find = MagicMock(
-            return_value=_async_cursor([{"_id": "user_1"}, {"_id": "user_2"}])
-        )
-        monkeypatch.setattr("app.services.digest._users_col", mock_users_col)
+        memories = MagicMock()
+        memories.distinct = AsyncMock(return_value=["user_1", "user_2"])
+        db = _make_db({"memories": memories})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
 
         async def mock_generate_and_store_digest(user_id, window_hours=168):
             if user_id == "user_1":
