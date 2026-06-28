@@ -29,6 +29,19 @@ class MemoryResponse(BaseModel):
 
 
 # ── Query ─────────────────────────────────────────────────────────────────────
+class ConversationTurn(BaseModel):
+    role: str        # "user" or "assistant"
+    content: str
+
+
+class QueryRequest(BaseModel):
+    q: str = Field(..., min_length=1, max_length=500)
+    limit: int = Field(5, ge=1, le=20)
+    intent_filter: Optional[str] = None
+    min_importance: float = Field(0.0, ge=0.0, le=1.0)
+    history: List[ConversationTurn] = Field(default_factory=list)
+
+
 class SourceInfo(BaseModel):
     speaker: str = "unknown"
     intent: str = "general"

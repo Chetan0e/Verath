@@ -160,21 +160,26 @@ export const uploadAudio = async (uri) => {
 export const askQuestion = async (q, options = {}) => {
   try {
     const authHeader = await getAuthHeader();
-    const { limit = 5, intent_filter, speaker_filter } = options;
-    
-    let url = `${BASE_URL}/query?q=${encodeURIComponent(q)}&limit=${limit}`;
-    if (intent_filter) url += `&intent_filter=${intent_filter}`;
-    if (speaker_filter) url += `&speaker_filter=${speaker_filter}`;
-    
-    const response = await fetch(url, {
-      headers: { ...authHeader }
+    const { limit = 5, intent_filter, history = [] } = options;
+
+    const body = { q, limit };
+    if (intent_filter) body.intent_filter = intent_filter;
+    if (history.length > 0) body.history = history;
+
+    const response = await fetch(`${BASE_URL}/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeader
+      },
+      body: JSON.stringify(body),
     });
-    
+
     if (!response.ok) {
       console.warn(`Query failed: ${response.status}`);
       return { answer: 'Verath encountered an error.', context: [], sources: [] };
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Error asking question:', error);

@@ -20,6 +20,7 @@ async def run_query(
     limit: int = 5,
     intent_filter: Optional[str] = None,
     min_importance: float = 0.0,
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """
     Full RAG pipeline:
@@ -55,11 +56,20 @@ async def run_query(
         f"[Memory {i+1}]: {text}" for i, text in enumerate(context_texts)
     )
 
+    history_block = ""
+    if history:
+        turns = "\n".join(
+            f"{'User' if t['role'] == 'user' else 'Verath'}: {t['content']}"
+            for t in history
+        )
+        history_block = f"Recent conversation:\n{turns}\n\n"
+
     prompt = (
         f"You are a personal memory assistant. Answer the question using ONLY "
         f"the memories provided below. If the memories don't contain enough "
         f"information, say so honestly.\n\n"
         f"Memories:\n{context_block}\n\n"
+        f"{history_block}"
         f"Question: {query}\n\n"
         f"Answer:"
     )
