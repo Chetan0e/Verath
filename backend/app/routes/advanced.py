@@ -9,6 +9,7 @@ from app.services.summarizer import generate_daily_summary, extract_key_insights
 from app.services.timeline import get_today_timeline
 from app.services.memory_store import get_memory_stats, all_memories, all_memories_filtered
 from app.services.auth import get_current_user_id
+from app.services.digest import generate_and_store_digest, get_latest_digest
 from app.services.memory_graph import build_memory_graph
 from app.core.logging_config import logger
 from app.core.cache import cached, get_cache_stats, invalidate_cache
@@ -329,3 +330,27 @@ async def export_memories(
     except Exception as e:
         logger.error(f"Error exporting memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to export memories")
+
+@router.get("/digest/latest")
+async def latest_digest(user_id: str = Depends(get_current_user_id)):
+    """Return the most recent stored digest for the current user."""
+    doc = await get_latest_digest(user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="No digest available yet.")
+    return {
+        "generated_at": doc["generated_at"].isoformat(),
+        "window_hours": doc["window_hours"],
+        "summary": doc["summary"],
+    }
+
+@router.post("/digest/generate")
+async def trigger_digest(
+    window_hours: int = Query(168, ge=1, le=720),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Manually trigger a digest for the current user."""
+    doc = await generate_and_store_digest(user_id, window_hours=window_hours)
+    return {
+        "generated_at": doc["generated_at"].isoformat(),
+        "summary": doc["summary"],
+    }

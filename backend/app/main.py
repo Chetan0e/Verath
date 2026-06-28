@@ -10,6 +10,7 @@ from app.config import settings
 from app.core.logging_config import setup_logging
 from app.workers.background_worker import start_worker
 from app.services.reminder_service import check_and_fire_reminders
+from app.services.digest import run_weekly_digests
 from app.services.database import get_db
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -141,6 +142,17 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         misfire_grace_time=60,   # allow 60s late start before skipping
     )
+    
+    # 5. Weekly digest — runs once a week, generates a per-user summary digest
+    _scheduler.add_job(
+        run_weekly_digests,
+        trigger="interval",
+        weeks=1,
+        id="weekly_digest",
+        replace_existing=True,
+        misfire_grace_time=3600,   # allow 1h late start before skipping
+    )
+    
     _scheduler.start()
     logger.info("Reminder scheduler started (interval: 15 min)")
 
