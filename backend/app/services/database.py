@@ -42,7 +42,7 @@ async def create_indexes():
         await db["memories"].create_index([("user_id", 1), ("created_at", -1)])
         await db["memories"].create_index([("user_id", 1), ("metadata.intent", 1)])
         await db["memories"].create_index([("user_id", 1), ("metadata.importance", -1)])
-        await db["memories"].create_index([("user_id", 1), ("metadata.lifecycle", 1)])
+        await db["memories"].create_index([("user_id", 1), ("lifecycle_stage", 1)])
         await db["memories"].create_index([("user_id", 1), ("metadata.speaker", 1)])
         await db["memories"].create_index("created_at", expireAfterSeconds=2592000)  # 30 days TTL for old documents if needed
 
