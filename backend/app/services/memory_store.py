@@ -323,7 +323,7 @@ async def get_memory_stats(user_id: str) -> Dict[str, Any]:
     pipeline = [
         {"$match": {"user_id": user_id}},
         {"$group": {
-            "_id": "$metadata.lifecycle",
+            "_id": "$lifecycle_stage",
             "count": {"$sum": 1},
             "avg_importance": {"$avg": "$metadata.importance"},
         }}
