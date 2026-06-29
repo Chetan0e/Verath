@@ -146,24 +146,40 @@ class MemoryLifecycleManager:
             db = get_db()
             if db is None:
                 return
-            
+
             cursor = db.memories.find({
                 "user_id": user_id,
                 "lifecycle_stage": "short_term",
-                "metadata.importance": {"$gte": self.IMPORTANCE_THRESHOLD}   # was top-level "importance"
+                "metadata.importance": {"$gte": self.IMPORTANCE_THRESHOLD},
             })
-            
+
             promoted_count = 0
+            archived_count = 0
             async for mem in cursor:
-                importance = mem.get("metadata", {}).get("importance", 0.0)  
+                raw_importance = mem.get("metadata", {}).get("importance", None)
+                try:
+                    importance = float(raw_importance)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        f"Memory {mem['_id']} matched DB filter but has non-numeric "
+                        f"metadata.importance={raw_importance!r}; skipping promotion."
+                    )
+                    continue
+
                 if importance >= self.IMPORTANCE_THRESHOLD:
-                    await self.promote_to_long_term(user_id, mem["_id"])
+                    promoted = await self.promote_to_long_term(user_id, mem["_id"])
+                    if promoted:
+                        promoted_count += 1
                 else:
-                    await self.archive_memory(user_id, mem["_id"])
-            
-            if promoted_count > 0:
-                logger.info(f"Auto-promoted {promoted_count} memories for user {user_id}")
-            
+                    archived = await self.archive_memory(user_id, mem["_id"])
+                    if archived:
+                        archived_count += 1
+
+            logger.info(
+                f"Auto-promotion complete for user {user_id}: "
+                f"promoted={promoted_count}, archived={archived_count}"
+            )
+
         except Exception as e:
             logger.error(f"Error auto-promoting memories: {e}", exc_info=True)
     
