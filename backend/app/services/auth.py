@@ -53,7 +53,13 @@ def create_refresh_token(username: str) -> str:
 
 # ── Token verification ────────────────────────────────────────────────────────
 async def verify_access_token(token: str) -> Optional[str]:
-    """Returns username if valid access token, else None."""
+    """Returns username if valid access token, else None.
+
+    Fails closed: if the database is unavailable (get_db() returns None)
+    or the blacklist lookup raises, the token is rejected rather than
+    silently accepted. This prevents revoked tokens from being replayed
+    during periods of DB degradation.
+    """
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
@@ -61,10 +67,22 @@ async def verify_access_token(token: str) -> Optional[str]:
         jti = payload.get("jti")
         if jti:
             db = get_db()
-            if db is not None:
+            if db is None:
+                logger.warning(
+                    "verify_access_token: database unavailable — rejecting token "
+                    "(fail-closed); jti=%s", jti
+                )
+                return None
+            try:
                 blacklisted = await db["blacklisted_tokens"].find_one({"jti": jti})
-                if blacklisted:
-                    return None
+            except Exception:
+                logger.exception(
+                    "verify_access_token: blacklist lookup failed — rejecting token "
+                    "(fail-closed); jti=%s", jti
+                )
+                return None
+            if blacklisted:
+                return None
         return payload.get("sub")
     except JWTError:
         return None
@@ -75,6 +93,10 @@ async def verify_refresh_token(token: str) -> Optional[str]:
 
     Also checks the blacklisted_tokens collection so that rotated (or
     explicitly revoked) refresh tokens cannot be reused.
+
+    Fails closed: if the database is unavailable (get_db() returns None)
+    or the blacklist lookup raises, the token is rejected rather than
+    silently accepted.
     """
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
@@ -83,10 +105,22 @@ async def verify_refresh_token(token: str) -> Optional[str]:
         jti = payload.get("jti")
         if jti:
             db = get_db()
-            if db is not None:
+            if db is None:
+                logger.warning(
+                    "verify_refresh_token: database unavailable — rejecting token "
+                    "(fail-closed); jti=%s", jti
+                )
+                return None
+            try:
                 blacklisted = await db["blacklisted_tokens"].find_one({"jti": jti})
-                if blacklisted:
-                    return None
+            except Exception:
+                logger.exception(
+                    "verify_refresh_token: blacklist lookup failed — rejecting token "
+                    "(fail-closed); jti=%s", jti
+                )
+                return None
+            if blacklisted:
+                return None
         return payload.get("sub")
     except JWTError:
         return None
