@@ -14,6 +14,11 @@ class ConnectionManager:
         self.active_connections: dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, user_id: str):
+        """Accept the handshake and register the connection.
+
+        This is the single path that calls websocket.accept() — callers
+        must not call accept() themselves beforehand.
+        """
         await websocket.accept()
         self.active_connections[user_id] = websocket
         logger.info(f"WebSocket connected for user {user_id}")
@@ -33,11 +38,15 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         """Send message to all connected users."""
-        for user_id, connection in self.active_connections.items():
+        disconnected = []
+        for user_id, connection in list(self.active_connections.items()):
             try:
                 await connection.send_json(message)
             except Exception as e:
                 logger.error(f"Error broadcasting to {user_id}: {e}")
+                disconnected.append(user_id)
+        for user_id in disconnected:
+            self.disconnect(user_id)
 
 
 manager = ConnectionManager()
@@ -47,40 +56,36 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time updates.
-    Clients must send {"type": "auth", "token": "<jwt>"} as the first message.
-    Token is never passed in the URL to avoid server log exposure.
+
+    Authentication is performed BEFORE accept() using the `token` query
+    parameter (e.g. wss://host/ws/updates?token=<jwt>).  Rejecting
+    pre-accept avoids allocating a file descriptor, I/O buffers, or an
+    entry in active_connections for unauthenticated clients.
+
+    All connection lifecycle operations are routed through ConnectionManager
+    so that accept() is called in exactly one place.
     """
-    await websocket.accept()
+    token = websocket.query_params.get("token", "")
 
-    try:
-        raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
-        message = json.loads(raw)
-    except asyncio.TimeoutError:
-        await websocket.close(code=4001, reason="Auth timeout")
+    # ── Authenticate before accepting the handshake ───────────────────────
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
         return
-    except Exception:
-        await websocket.close(code=4001, reason="Invalid auth frame")
-        return
-
-    if not isinstance(message, dict) or message.get("type") != "auth":
-        await websocket.close(code=4001, reason="Expected auth frame")
-        return
-
-    token = message.get("token", "")
 
     try:
         from app.services.auth import verify_access_token
         user_id = await verify_access_token(token)
-        if not user_id:
-            await websocket.close(code=4001, reason="Invalid token")
-            return
     except Exception as e:
-        logger.error(f"WebSocket auth failed: {e}")
+        logger.error(f"WebSocket auth error: {e}")
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
-    manager.active_connections[user_id] = websocket
-    logger.info(f"WebSocket connected for user {user_id}")
+    if not user_id:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    # ── Accept and register through the single authoritative path ────────
+    await manager.connect(websocket, user_id)
 
     try:
         while True:
