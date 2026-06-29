@@ -74,22 +74,120 @@ class TestAuth:
         data = response.json()
         assert "detail" in data
 
-    async def test_token_refresh_returns_new_token_pair(self, client: AsyncClient, monkeypatch):
-        """Test that token refresh returns new token pair."""
-        # Mock verify_refresh_token to succeed
-        async def mock_verify_refresh_token(token):
-            return "testuser"
-        
-        monkeypatch.setattr("app.services.auth.verify_refresh_token", mock_verify_refresh_token)
-        
-        response = await client.post(
-            "/auth/refresh",
-            json={"refresh_token": "valid_refresh_token"}
+    async def test_refresh_returns_new_token_pair_on_valid_token(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Happy path: a fresh refresh token yields a new access + refresh pair."""
+        inserted_docs = []
+
+        mock_col = MagicMock()
+        mock_col.insert_one = AsyncMock(
+            side_effect=lambda doc: inserted_docs.append(doc) or doc
         )
+        mock_audit = MagicMock()
+        mock_audit.insert_one = AsyncMock()
+
+        mock_db = {"blacklisted_tokens": mock_col, "audit_logs": mock_audit}
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        refresh_token = create_refresh_token("testuser")
+        response = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
+        assert data["username"] == "testuser"
+        # Old JTI must have been blacklisted
+        assert len(inserted_docs) == 1
+        assert inserted_docs[0]["reason"] == "refresh_rotation"
+        assert inserted_docs[0]["username"] == "testuser"
+
+    async def test_refresh_rejects_replayed_token_via_duplicate_key(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """
+        Unit: when insert_one raises DuplicateKeyError the endpoint must return
+        401 and must NOT issue any new tokens.
+        """
+        from pymongo.errors import DuplicateKeyError as MongoDuplicateKeyError
+
+        mock_col = MagicMock()
+        mock_col.insert_one = AsyncMock(
+            side_effect=MongoDuplicateKeyError("duplicate jti")
+        )
+        mock_audit = MagicMock()
+        mock_audit.insert_one = AsyncMock()
+
+        mock_db = {"blacklisted_tokens": mock_col, "audit_logs": mock_audit}
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        refresh_token = create_refresh_token("testuser")
+        response = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert "already used" in response.json()["detail"].lower() or \
+               "revoked" in response.json()["detail"].lower()
+
+    async def test_refresh_concurrent_requests_only_one_succeeds(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """
+        Concurrency: two simultaneous refresh requests with the same token must
+        result in exactly one 200 and one 401 — not two 200s.
+        """
+        import asyncio
+        from pymongo.errors import DuplicateKeyError as MongoDuplicateKeyError
+
+        call_count = {"n": 0}
+
+        async def atomic_insert(doc):
+            call_count["n"] += 1
+            if call_count["n"] > 1:
+                raise MongoDuplicateKeyError("duplicate jti")
+            return doc
+
+        mock_col = MagicMock()
+        mock_col.insert_one = AsyncMock(side_effect=atomic_insert)
+        mock_audit = MagicMock()
+        mock_audit.insert_one = AsyncMock()
+
+        mock_db = {"blacklisted_tokens": mock_col, "audit_logs": mock_audit}
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
+
+        refresh_token = create_refresh_token("testuser")
+
+        r1, r2 = await asyncio.gather(
+            client.post("/auth/refresh", json={"refresh_token": refresh_token}),
+            client.post("/auth/refresh", json={"refresh_token": refresh_token}),
+        )
+
+        statuses = sorted([r1.status_code, r2.status_code])
+        assert statuses == [
+            status.HTTP_200_OK,
+            status.HTTP_401_UNAUTHORIZED,
+        ], f"Expected [200, 401], got {statuses}"
+
+    async def test_refresh_rejects_invalid_jwt(self, client: AsyncClient):
+        """A malformed or tampered token must return 401 without touching the DB."""
+        response = await client.post(
+            "/auth/refresh", json={"refresh_token": "not.a.valid.jwt"}
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_refresh_rejects_access_token_used_as_refresh(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """An access token presented to /auth/refresh must be rejected (wrong type)."""
+        mock_audit = MagicMock()
+        mock_audit.insert_one = AsyncMock()
+        monkeypatch.setattr("app.routes.auth.get_db", lambda: {"audit_logs": mock_audit})
+
+        access_token = create_access_token("testuser")
+        response = await client.post(
+            "/auth/refresh", json={"refresh_token": access_token}
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_rate_limiting_triggers_on_6th_signup_attempt(self, client: AsyncClient, monkeypatch):
         """Test that rate limiting triggers on 6th signup attempt."""
@@ -165,66 +263,6 @@ class TestAuth:
         result = await verify_refresh_token(token)
 
         assert result == "testuser"
-
-    async def test_refresh_endpoint_blacklists_old_token(self, client: AsyncClient, monkeypatch):
-        """
-        Integration: calling /auth/refresh must write the consumed token's JTI
-        to blacklisted_tokens before issuing the new pair.
-        """
-        inserted_docs = []
-
-        mock_collection = MagicMock()
-        mock_collection.find_one = AsyncMock(return_value=None)  # not yet blacklisted
-        mock_collection.insert_one = AsyncMock(side_effect=lambda doc: inserted_docs.append(doc))
-
-        mock_db = {"blacklisted_tokens": mock_collection}
-        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
-        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
-
-        refresh_token = create_refresh_token("testuser")
-
-        response = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "access_token" in data
-        assert "refresh_token" in data
-        # The old token must have been blacklisted
-        assert len(inserted_docs) == 1
-        assert inserted_docs[0]["reason"] == "refresh_rotation"
-        assert "jti" in inserted_docs[0]
-
-    async def test_refresh_endpoint_rejects_already_used_token(self, client: AsyncClient, monkeypatch):
-        """
-        Integration: using the same refresh token twice must return 401 on the second call.
-        """
-        call_count = [0]
-
-        async def mock_find_one(query):
-            # First call (from verify_refresh_token): not blacklisted
-            # Second call (from verify_refresh_token on replay): blacklisted
-            call_count[0] += 1
-            if call_count[0] > 1:
-                return {"jti": "already-used"}
-            return None
-
-        mock_collection = MagicMock()
-        mock_collection.find_one = mock_find_one
-        mock_collection.insert_one = AsyncMock()
-
-        mock_db = {"blacklisted_tokens": mock_collection}
-        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
-        monkeypatch.setattr("app.routes.auth.get_db", lambda: mock_db)
-
-        refresh_token = create_refresh_token("testuser")
-
-        # First use — must succeed
-        r1 = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
-        assert r1.status_code == status.HTTP_200_OK
-
-        # Second use of the *same* token — must be rejected
-        r2 = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
-        assert r2.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_logout_still_invalidates_access_token(self, client: AsyncClient, monkeypatch):
         """
