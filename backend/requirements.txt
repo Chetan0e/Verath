@@ -41,7 +41,7 @@ torchaudio>=2.1.0
 # =========================
 # Scheduling & Background Jobs
 # =========================
-apscheduler==3.10.4
+apscheduler==3.11.3
 celery>=5.6.3
 redis>=5.0.0
 
