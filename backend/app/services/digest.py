@@ -14,15 +14,17 @@ DEFAULT_WINDOW_HOURS = 168
 async def _get_active_user_ids(window_hours: int) -> List[str]:
     """Return user_ids with memory activity in the window.
 
-    Uses the same `timestamp` field that the summarizer's timeline query
-    filters on, so we only digest users the summary would actually cover.
+    Filters on `created_at`, the BSON Date field used by the other memory
+    queries in the codebase (get_memory_stats, all_memories_filtered). The
+    `timestamp` field is stored as an ISO string, so a datetime `$gte`
+    predicate against it never matches in MongoDB.
     """
     db = get_db()
     if db is None:
         return []
     cutoff = datetime.utcnow() - timedelta(hours=window_hours)
     user_ids = await db["memories"].distinct(
-        "user_id", {"timestamp": {"$gte": cutoff}}
+        "user_id", {"created_at": {"$gte": cutoff}}
     )
     return [str(uid) for uid in user_ids if uid]
 
