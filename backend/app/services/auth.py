@@ -7,18 +7,12 @@ import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import settings
 from app.services.database import get_db
 
 
 logger = logging.getLogger(__name__)
-
-_mongo = AsyncIOMotorClient(settings.mongo_uri)
-_db = _mongo[settings.database_name]
-_users_col = _db["users"]
-_login_attempts_col = _db["login_attempts"]
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days in minutes
 REFRESH_TOKEN_EXPIRE_DAYS = 30
@@ -104,10 +98,11 @@ def decode_access_token(token: str) -> Optional[Dict]:
 # ── User operations ───────────────────────────────────────────────────────────
 async def create_user(username: str, password: str) -> bool:
     username = username.lower().strip()
-    existing = await _users_col.find_one({"username": username})
+    db = get_db()
+    existing = await db["users"].find_one({"username": username})
     if existing:
         return False
-    await _users_col.insert_one({
+    await db["users"].insert_one({
         "username": username,
         "password_hash": hash_password(password),
         "created_at": datetime.utcnow(),
@@ -117,16 +112,19 @@ async def create_user(username: str, password: str) -> bool:
 
 async def authenticate_user(username: str, password: str) -> Optional[str]:
     username = username.lower().strip()
-    user = await _users_col.find_one({"username": username})
+    db = get_db()
+    user = await db["users"].find_one({"username": username})
     if not user or not verify_password(password, user["password_hash"]):
         return None
     return username
+
 
 # ── Account lockout (brute-force protection) ──────────────────────────────────
 async def get_lockout_seconds_remaining(username: str) -> int:
     """Return seconds remaining on an active lockout, or 0 if not locked."""
     username = username.lower().strip()
-    record = await _login_attempts_col.find_one({"username": username})
+    db = get_db()
+    record = await db["login_attempts"].find_one({"username": username})
     if not record:
         return 0
     locked_until = record.get("locked_until")
@@ -139,7 +137,8 @@ async def register_failed_login(username: str) -> None:
     """Record a failed attempt; lock the account once the threshold is hit."""
     username = username.lower().strip()
     now = datetime.utcnow()
-    record = await _login_attempts_col.find_one({"username": username})
+    db = get_db()
+    record = await db["login_attempts"].find_one({"username": username})
     failures = (record.get("failures", 0) if record else 0) + 1
 
     update = {"failures": failures, "last_failed_at": now}
@@ -150,7 +149,7 @@ async def register_failed_login(username: str) -> None:
             f"failures={failures} minutes={settings.login_lockout_minutes}"
         )
 
-    await _login_attempts_col.update_one(
+    await db["login_attempts"].update_one(
         {"username": username},
         {"$set": update},
         upsert=True,
@@ -160,19 +159,21 @@ async def register_failed_login(username: str) -> None:
 async def reset_login_attempts(username: str) -> None:
     """Clear any failure record on successful authentication."""
     username = username.lower().strip()
-    await _login_attempts_col.delete_one({"username": username})
+    db = get_db()
+    await db["login_attempts"].delete_one({"username": username})
 
 
 async def get_user_id_from_username(username: str) -> Optional[str]:
     """Get user_id from username."""
     username = username.lower().strip()
-    user = await _users_col.find_one({"username": username})
+    db = get_db()
+    user = await db["users"].find_one({"username": username})
     if not user:
         return None
     return str(user.get("_id")) if "_id" in user else username
 
 
-# ── FastAPI dependencies ─────────────────────────────────────────────────────────
+# ── FastAPI dependencies ──────────────────────────────────────────────────────
 _bearer = HTTPBearer()
 
 
@@ -188,6 +189,7 @@ async def get_current_user_id(
         )
     return username
 
+
 async def get_current_user(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> Dict[str, str]:
@@ -197,11 +199,9 @@ async def get_current_user(
     Returns user context dict expected by older route handlers.
     """
     username = await verify_access_token(creds.credentials)
-
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
-
     return {"username": username}

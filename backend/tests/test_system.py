@@ -15,7 +15,7 @@ async def test_status_ok(client: AsyncClient):
 # ── Auth: signup ──────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_signup_creates_user(client: AsyncClient, mock_db, monkeypatch):
-    monkeypatch.setattr("app.services.auth._users_col", mock_db)
+    monkeypatch.setattr("app.services.auth.get_db", lambda: {"users": mock_db, "login_attempts": mock_db})
 
     response = await client.post("/auth/signup", json={
         "username": "newuser",
@@ -29,7 +29,7 @@ async def test_signup_creates_user(client: AsyncClient, mock_db, monkeypatch):
 async def test_signup_duplicate_rejected(client: AsyncClient, mock_db, monkeypatch):
     from unittest.mock import AsyncMock
     mock_db.find_one = AsyncMock(return_value={"username": "existing"})
-    monkeypatch.setattr("app.services.auth._users_col", mock_db)
+    monkeypatch.setattr("app.services.auth.get_db", lambda: {"users": mock_db, "login_attempts": mock_db})
 
     response = await client.post("/auth/signup", json={
         "username": "existing",
@@ -48,8 +48,7 @@ async def test_login_returns_token_pair(client: AsyncClient, mock_db, monkeypatc
         "username": "test_user",
         "password_hash": hash_password("correct_password"),
     })
-    monkeypatch.setattr("app.services.auth._users_col", mock_db)
-
+    monkeypatch.setattr("app.services.auth.get_db", lambda: {"users": mock_db, "login_attempts": mock_db})
     response = await client.post("/auth/login", json={
         "username": "test_user",
         "password": "correct_password"
@@ -70,8 +69,7 @@ async def test_login_wrong_password_rejected(client: AsyncClient, mock_db, monke
         "username": "test_user",
         "password_hash": hash_password("correct_password"),
     })
-    monkeypatch.setattr("app.services.auth._users_col", mock_db)
-
+    monkeypatch.setattr("app.services.auth.get_db", lambda: {"users": mock_db, "login_attempts": mock_db})
     response = await client.post("/auth/login", json={
         "username": "test_user",
         "password": "wrong_password"
