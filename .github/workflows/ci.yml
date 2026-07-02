@@ -43,7 +43,10 @@ jobs:
     - name: Run tests
       run: |
         cd backend
-        pytest --cov=app --cov-report=xml
+        # test_e2e.py needs a live server on :8002 (see its docstring) and is
+        # run separately via `make e2e`; CI never starts that server, so it's
+        # excluded from the default suite here.
+        pytest --cov=app --cov-report=xml --ignore=tests/test_e2e.py
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
