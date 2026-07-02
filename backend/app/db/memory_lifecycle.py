@@ -154,6 +154,7 @@ class MemoryLifecycleManager:
             })
 
             promoted_count = 0
+            archived_count = 0
             async for mem in cursor:
                 promoted = await self.promote_to_long_term(user_id, mem["_id"])
                 if promoted:
