@@ -36,4 +36,10 @@ def transcribe(audio_path: str) -> str:
         return text
     except Exception as e:
         logger.error(f"Transcription error: {e}")
+        # Clear the lru_cache so the next call attempts to reload the model
+        # rather than reusing a potentially corrupted or stale instance.
+        # Without this, a model that enters an error state (e.g. GPU OOM)
+        # is used indefinitely for the lifetime of the process.
+        get_model.cache_clear()
+        logger.info("Whisper model cache cleared — will reload on next transcription attempt.")
         raise
