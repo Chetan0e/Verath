@@ -115,11 +115,20 @@ async def refresh(request: Request, body: RefreshRequest):
     """
     Exchange a valid refresh token for a new access + refresh token pair.
     Refresh token rotation: old refresh token is invalidated on use.
+
+    Atomicity guarantee: the old JTI is written to blacklisted_tokens via
+    insert_one BEFORE new tokens are issued.  The unique index on `jti`
+    (database.py) means a duplicate concurrent request raises DuplicateKeyError,
+    which is converted to 401 — eliminating the check-then-act race.
     """
-    username = await verify_refresh_token(body.refresh_token)
     ip_address = request.client.host if request.client else "unknown"
-    
-    if not username:
+
+    # ── Step 1: decode & basic structural validation (no DB round-trip yet) ──
+    try:
+        payload = jwt.decode(
+            body.refresh_token, settings.secret_key, algorithms=[ALGORITHM]
+        )
+    except JWTError:
         await _log_auth_event("unknown", ip_address, "refresh", False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -127,29 +136,58 @@ async def refresh(request: Request, body: RefreshRequest):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Blacklist the consumed refresh token before issuing a new pair.
-    # This enforces true rotation: a stolen or replayed token is rejected.
-    try:
-        old_payload = jwt.decode(
-            body.refresh_token, settings.secret_key, algorithms=[ALGORITHM]
+    if payload.get("type") != "refresh":
+        await _log_auth_event("unknown", ip_address, "refresh", False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        old_jti = old_payload.get("jti")
-        old_exp = old_payload.get("exp")
-        if old_jti and old_exp:
-            db = get_db()
-            if db is not None:
-                await db["blacklisted_tokens"].insert_one({
-                    "jti": old_jti,
-                    "exp": datetime.fromtimestamp(old_exp),
-                    "blacklisted_at": datetime.utcnow(),
-                    "username": username,
-                    "reason": "refresh_rotation",
-                })
-    except (JWTError, Exception):
-        pass  # Token was already validated above; decoding won't fail here
-    
+
+    username = payload.get("sub")
+    old_jti = payload.get("jti")
+    old_exp = payload.get("exp")
+
+    if not username or not old_jti or not old_exp:
+        await _log_auth_event("unknown", ip_address, "refresh", False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # ── Step 2: atomic blacklist insert — this is the single gate ────────────
+    # If the JTI is already present (concurrent request, replay, or prior
+    # rotation) the unique index raises DuplicateKeyError → 401, no tokens
+    # issued.  Only one concurrent caller can succeed the insert; all others
+    # are rejected before new tokens are ever created.
+    db = get_db()
+    if db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable",
+        )
+
+    try:
+        await db["blacklisted_tokens"].insert_one({
+            "jti": old_jti,
+            "exp": datetime.fromtimestamp(old_exp),
+            "blacklisted_at": datetime.utcnow(),
+            "username": username,
+            "reason": "refresh_rotation",
+        })
+    except DuplicateKeyError:
+        # Token was already rotated or is being replayed concurrently.
+        await _log_auth_event(username, ip_address, "refresh", False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token already used or revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # ── Step 3: issue new token pair (only reached by the winner) ────────────
     await _log_auth_event(username, ip_address, "refresh", True)
-    
+
     return TokenResponse(
         access_token=create_access_token(username),
         refresh_token=create_refresh_token(username),  # rotate
