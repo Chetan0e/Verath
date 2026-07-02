@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TOKEN_KEY, REFRESH_KEY, USERNAME_KEY } from "../services/authKeys";
+import { validateUsername, validatePassword } from "../services/validation";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
 
@@ -21,14 +22,24 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
   const [focusedInput, setFocusedInput] = useState(null);
 
   const handleLogin = async () => {
-    if (!username || !password) {
-      Alert.alert("Error", "Please enter both username and password");
+    const trimmedUsername = username.trim();
+    const usernameError = validateUsername(trimmedUsername);
+    const passwordError = validatePassword(password);
+
+    if (usernameError) {
+      Alert.alert("Validation Error", usernameError);
       return;
     }
+
+    if (passwordError) {
+      Alert.alert("Validation Error", passwordError);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await axios.post(`${API_BASE}/auth/login`, {
-        username,
+        username: trimmedUsername,
         password,
       });
       if (response.data.access_token) {
@@ -36,7 +47,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }) {
         if (response.data.refresh_token) {
           await AsyncStorage.setItem(REFRESH_KEY, response.data.refresh_token);
         }
-        await AsyncStorage.setItem(USERNAME_KEY, response.data.username);
+        await AsyncStorage.setItem(USERNAME_KEY, response.data.username || trimmedUsername);
         onLoginSuccess();
       } else {
         Alert.alert("Login Failed", "Invalid credentials");

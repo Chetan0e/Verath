@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
+import { validateUsername, validatePassword } from "../services/validation";
 
 const { width } = Dimensions.get("window");
 const API_BASE = API_BASE_URL;
@@ -20,14 +21,24 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
   const [focusedInput, setFocusedInput] = useState(null);
 
   const handleRegister = async () => {
-    if (!username || !password) {
-      Alert.alert("Error", "Please fill all fields");
+    const trimmedUsername = username.trim();
+    const usernameError = validateUsername(trimmedUsername);
+    const passwordError = validatePassword(password, { isSignup: true });
+
+    if (usernameError) {
+      Alert.alert("Validation Error", usernameError);
       return;
     }
+
+    if (passwordError) {
+      Alert.alert("Validation Error", passwordError);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await axios.post(`${API_BASE}/auth/signup`, {
-        username,
+        username: trimmedUsername,
         password,
       });
       if (response.status === 200 || response.status === 201) {
