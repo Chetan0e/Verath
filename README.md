@@ -564,21 +564,21 @@ All settings are loaded from the repo-root `.env` via `backend/app/config.py` (P
 
 ### Audio processing
 
-| Variable | Default |
-|----------|---------|
-| `AUDIO_SAMPLE_RATE` | `16000` |
-| `AUDIO_CHANNELS` | `1` |
-| `AUDIO_FORMAT` | `int16` |
-| `MAX_AUDIO_CHUNK_SIZE` | `30` |
-| `SILENCE_THRESHOLD` | `0.01` |
-| `MIN_TRANSCRIPTION_LENGTH` | `5` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUDIO_SAMPLE_RATE` | `16000` | Sample rate for incoming audio (e.g., 16 kHz) |
+| `AUDIO_CHANNELS` | `1` | Number of audio channels (1 for mono) |
+| `AUDIO_FORMAT` | `int16` | Bit depth format for audio processing |
+| `MAX_AUDIO_CHUNK_SIZE` | `30` | Maximum chunk size in seconds for processing |
+| `SILENCE_THRESHOLD` | `0.01` | Volume threshold to detect silence or no speech |
+| `MIN_TRANSCRIPTION_LENGTH` | `5` | Minimum character length to process a transcription |
 
 ### Memory thresholds
 
-| Variable | Default |
-|----------|---------|
-| `MAX_MEMORY_RESULTS` | `100` |
-| `MEMORY_IMPORTANCE_THRESHOLD` | `0.6` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_MEMORY_RESULTS` | `100` | Maximum number of memory results to return |
+| `MEMORY_IMPORTANCE_THRESHOLD` | `0.6` | Score required to promote a memory to long-term storage |
 
 ### Privacy & data flow
 
