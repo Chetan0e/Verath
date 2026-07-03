@@ -8,34 +8,40 @@ class TestReminders:
     """Test reminder functionality."""
 
     async def test_memory_with_date_and_alertable_intent_creates_reminder_alert(self, monkeypatch):
-        """Test that memory with date + alertable intent creates reminder alert."""
-        # Mock MongoDB collections
+        """Memory with alertable intent and a date in the lookahead window creates an alert."""
+        from datetime import datetime, timedelta
+
+        # Dynamic future date so the 24-hour window check passes
+        future_date = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+
         mock_memories_col = MagicMock()
         mock_memories_col.find = MagicMock(return_value=_async_cursor([
             {
                 "_id": "mem_1",
                 "user_id": "test_user",
-                "text": "Meeting tomorrow at 2pm",
+                "text": "Meeting in an hour",
                 "metadata": {
                     "intent": "meeting",
-                    "entities": {
-                        "dates": ["2026-04-15T14:00:00"]
-                    }
-                }
+                    "entities": {"dates": [future_date]},
+                },
             }
         ]))
-        
+
         mock_alerts_col = MagicMock()
         mock_alerts_col.find_one = AsyncMock(return_value=None)
         mock_alerts_col.insert_one = AsyncMock()
-        
-        monkeypatch.setattr("app.services.reminder_service._memories_col", mock_memories_col)
-        monkeypatch.setattr("app.services.reminder_service._alerts_col", mock_alerts_col)
-        
+
+        mock_db = MagicMock()
+        mock_db.__getitem__ = MagicMock(side_effect=lambda name: {
+            "memories": mock_memories_col,
+            "alerts": mock_alerts_col,
+        }.get(name, MagicMock()))
+        monkeypatch.setattr("app.services.reminder_service.get_db", lambda: mock_db)
+
         from app.services.reminder_service import check_and_fire_reminders
         count = await check_and_fire_reminders()
-        
-        assert count >= 0
+
+        assert count >= 1
         mock_alerts_col.insert_one.assert_called()
 
     async def test_get_upcoming_reminders_returns_correct_reminders_within_time_window(self, client: AsyncClient, monkeypatch, auth_headers):

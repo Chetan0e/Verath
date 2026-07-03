@@ -40,7 +40,9 @@ class TestAccountLockout:
         col.find_one = AsyncMock(return_value=None)
         col.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
         col.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
-        monkeypatch.setattr(auth_service, "_login_attempts_col", col)
+        mock_db = MagicMock()
+        mock_db.__getitem__ = MagicMock(return_value=col)
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
         return col
 
     async def test_no_record_means_not_locked(self, attempts_col):
@@ -107,9 +109,21 @@ class TestAccountLockout:
         """End-to-end: failures land 401, the (N+1)th request lands 429 with Retry-After."""
         fake_col = _FakeAttemptsCollection()
 
-        # Patch in both the service module (where the lockout funcs read the
-        # collection) and the route module (where they were imported by name).
-        monkeypatch.setattr(auth_service, "_login_attempts_col", fake_col)
+        # Route handler also calls get_db() for audit_logs and blacklisted_tokens;
+        # provide async-safe stubs so those calls don't hit a real server.
+        audit_col = MagicMock()
+        audit_col.insert_one = AsyncMock()
+        blacklist_col = MagicMock()
+        blacklist_col.find_one = AsyncMock(return_value=None)
+
+        mock_db = MagicMock()
+        mock_db.__getitem__ = MagicMock(side_effect=lambda name: {
+            "login_attempts": fake_col,
+            "audit_logs": audit_col,
+            "blacklisted_tokens": blacklist_col,
+        }.get(name, MagicMock()))
+
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
         monkeypatch.setattr(auth_service.settings, "login_max_failures", 3)
         monkeypatch.setattr(auth_service.settings, "login_lockout_minutes", 15)
 
