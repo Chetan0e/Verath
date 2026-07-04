@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.services.database import get_db
@@ -24,7 +24,7 @@ async def check_and_fire_reminders() -> int:
     memories_col = db["memories"]
     alerts_col = db["alerts"]
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     window_end = now + timedelta(hours=LOOKAHEAD_HOURS)
 
     cursor = memories_col.find({
@@ -66,6 +66,9 @@ async def check_and_fire_reminders() -> int:
                         continue
                 except Exception:
                     continue
+
+            if parsed_date.tzinfo is None:
+                parsed_date = parsed_date.replace(tzinfo=timezone.utc)
 
             if not (now <= parsed_date <= window_end):
                 continue
@@ -117,7 +120,7 @@ async def get_upcoming_reminders(
     db = get_db()
     alerts_col = db["alerts"]
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     query: Dict[str, Any] = {
         "user_id": user_id,
