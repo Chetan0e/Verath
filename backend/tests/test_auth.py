@@ -351,3 +351,115 @@ class TestAuth:
         # succeeds idempotently.
         assert response.status_code != status.HTTP_500_INTERNAL_SERVER_ERROR
         assert response.status_code == status.HTTP_200_OK
+
+    async def test_verify_access_token_rejects_when_db_unavailable(self, monkeypatch):
+        """
+        Security: verify_access_token must return None (fail-closed) when
+        get_db() returns None — not silently accept the token.
+        Regression for issue #142.
+        """
+        token = create_access_token("testuser")
+        monkeypatch.setattr("app.services.auth.get_db", lambda: None)
+
+        result = await verify_access_token(token)
+
+        assert result is None, (
+            "verify_access_token must deny tokens when DB is unavailable "
+            "(fail-closed), not accept them"
+        )
+
+    async def test_verify_refresh_token_rejects_when_db_unavailable(self, monkeypatch):
+        """
+        Security: verify_refresh_token must return None (fail-closed) when
+        get_db() returns None — not silently accept the token.
+        Regression for issue #142.
+        """
+        token = create_refresh_token("testuser")
+        monkeypatch.setattr("app.services.auth.get_db", lambda: None)
+
+        result = await verify_refresh_token(token)
+
+        assert result is None, (
+            "verify_refresh_token must deny tokens when DB is unavailable "
+            "(fail-closed), not accept them"
+        )
+
+    async def test_verify_access_token_rejects_when_blacklist_lookup_raises(self, monkeypatch):
+        """
+        Security: verify_access_token must return None if the blacklist
+        find_one raises (e.g. connection pool exhaustion, network partition).
+        Regression for issue #142.
+        """
+        token = create_access_token("testuser")
+
+        mock_col = MagicMock()
+        mock_col.find_one = AsyncMock(side_effect=Exception("connection reset"))
+        monkeypatch.setattr(
+            "app.services.auth.get_db",
+            lambda: {"blacklisted_tokens": mock_col},
+        )
+
+        result = await verify_access_token(token)
+
+        assert result is None
+
+    async def test_verify_refresh_token_rejects_when_blacklist_lookup_raises(self, monkeypatch):
+        """
+        Security: verify_refresh_token must return None if the blacklist
+        find_one raises (e.g. connection pool exhaustion, network partition).
+        Regression for issue #142.
+        """
+        token = create_refresh_token("testuser")
+
+        mock_col = MagicMock()
+        mock_col.find_one = AsyncMock(side_effect=Exception("connection reset"))
+        monkeypatch.setattr(
+            "app.services.auth.get_db",
+            lambda: {"blacklisted_tokens": mock_col},
+        )
+
+        result = await verify_refresh_token(token)
+
+        assert result is None
+
+    async def test_blacklisted_jti_rejected_even_after_db_recovers(self, monkeypatch):
+        """
+        Security: a token whose JTI was blacklisted before a DB outage must
+        remain rejected once the DB is back — the fail-closed path during
+        outage must not have 'cleared' the blacklist entry.
+        Regression for issue #142.
+        """
+        token = create_access_token("testuser")
+
+        # Phase 1: DB down — token must be rejected (fail-closed)
+        monkeypatch.setattr("app.services.auth.get_db", lambda: None)
+        result_during_outage = await verify_access_token(token)
+        assert result_during_outage is None
+
+        # Phase 2: DB back up with the JTI blacklisted — still rejected
+        mock_col = MagicMock()
+        mock_col.find_one = AsyncMock(return_value={"jti": "some-jti"})
+        monkeypatch.setattr(
+            "app.services.auth.get_db",
+            lambda: {"blacklisted_tokens": mock_col},
+        )
+        result_after_recovery = await verify_access_token(token)
+        assert result_after_recovery is None
+
+    async def test_valid_token_accepted_when_db_available_and_not_blacklisted(self, monkeypatch):
+        """
+        Sanity: fail-closed changes must not break the normal happy path —
+        a non-blacklisted token with DB available must still be accepted.
+        """
+        token = create_access_token("testuser")
+
+        mock_col = MagicMock()
+        mock_col.find_one = AsyncMock(return_value=None)  # not blacklisted
+        monkeypatch.setattr(
+            "app.services.auth.get_db",
+            lambda: {"blacklisted_tokens": mock_col},
+        )
+
+        result = await verify_access_token(token)
+
+        assert result == "testuser"
