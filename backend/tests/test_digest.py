@@ -125,6 +125,25 @@ class TestDigestService:
         assert generated_for == ["user_1", "user_2"]
         memories.distinct.assert_called_once()
 
+    async def test_get_active_user_ids_queries_created_at_not_timestamp(self, monkeypatch):
+        """The active-user query must filter on created_at (BSON Date), not the
+        timestamp string field, or it silently matches nothing in MongoDB."""
+        memories = MagicMock()
+        memories.distinct = AsyncMock(return_value=["user_1"])
+        db = _make_db({"memories": memories})
+        monkeypatch.setattr("app.services.digest.get_db", lambda: db)
+
+        from app.services.digest import _get_active_user_ids
+
+        result = await _get_active_user_ids(168)
+
+        assert result == ["user_1"]
+        memories.distinct.assert_called_once()
+        field, query = memories.distinct.call_args.args
+        assert field == "user_id"
+        assert "created_at" in query
+        assert "timestamp" not in query
+
     async def test_run_weekly_digests_skips_inactive_users(self, monkeypatch):
         """With no active users, no digests are generated."""
         memories = MagicMock()
