@@ -27,7 +27,8 @@ def test_status():
         response = requests.get(f"{BASE_URL}/status")
         if response.status_code == 200:
             data = response.json()
-            print_result(True, f"System is {data.get('status')} with {data.get('nodes')} nodes")
+            # FIX 1: replaced non-existent 'nodes' field with actual response fields
+            print_result(True, f"System is {data.get('status')}, version {data.get('version')}, scheduler {data.get('scheduler')}")
             return True
         else:
             print_result(False, f"Status code: {response.status_code}")
@@ -45,7 +46,8 @@ def test_signup():
             f"{BASE_URL}/auth/signup",
             json={"username": username, "password": "testpass123"}
         )
-        if response.status_code == 200:
+        # FIX 2: /auth/signup returns 201 Created, not 200
+        if response.status_code in (200, 201):
             data = response.json()
             print_result(True, f"User created: {username}")
             return username
@@ -86,7 +88,9 @@ def test_query(token):
         )
         if response.status_code == 200:
             data = response.json()
-            print_result(True, f"Query returned: {data.get('answer')[:50]}...")
+            # FIX 3: guard against None answer crashing with TypeError on [:50]
+            answer = data.get('answer') or ""
+            print_result(True, f"Query returned: {answer[:50]}...")
             return True
         else:
             print_result(False, f"Status code: {response.status_code}, Error: {response.text}")
@@ -162,7 +166,9 @@ def test_summary(token):
         )
         if response.status_code == 200:
             data = response.json()
-            print_result(True, f"Summary generated: {data.get('summary')[:50]}...")
+            # same None-guard as test_query for consistency
+            summary = data.get('summary') or ""
+            print_result(True, f"Summary generated: {summary[:50]}...")
             return True
         else:
             print_result(False, f"Status code: {response.status_code}, Error: {response.text}")
@@ -272,34 +278,43 @@ def main():
         print("\n❌ Login failed. Cannot continue with authenticated tests.")
         return
 
+    # FIX 4: track all results instead of unconditionally printing success
+    results = []
+
     # Test 4: Query
-    test_query(token)
+    results.append(test_query(token))
 
     # Test 5: Statistics
-    test_statistics(token)
+    results.append(test_statistics(token))
 
     # Test 6: Timeline
-    test_timeline(token)
+    results.append(test_timeline(token))
 
     # Test 7: Insights
-    test_insights(token)
+    results.append(test_insights(token))
 
     # Test 8: Summary
-    test_summary(token)
+    results.append(test_summary(token))
 
     # Test 9: Speaker auth regression
-    test_speaker_train_unauthenticated()
-    test_speaker_profiles_unauthenticated()
+    results.append(test_speaker_train_unauthenticated())
+    results.append(test_speaker_profiles_unauthenticated())
 
     # Test 10: Speaker authenticated
-    test_speaker_train_authenticated(token)
-    test_speaker_profiles_authenticated(token)
+    results.append(test_speaker_train_authenticated(token))
+    results.append(test_speaker_profiles_authenticated(token))
 
     # Final summary
     print("\n" + "="*60)
     print("Test Suite Complete")
     print("="*60)
-    print("\n✅ All basic endpoints are functional!")
+
+    failed = results.count(False)
+    if failed == 0:
+        print("\n✅ All basic endpoints are functional!")
+    else:
+        print(f"\n⚠️  {failed} test(s) failed. Check output above.")
+
     print("\nNext steps:")
     print("1. Test mobile app connection")
     print("2. Test web dashboard connection")
