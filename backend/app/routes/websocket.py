@@ -1,7 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import logging
 import json
-import asyncio
+
+from app.services.ws_tickets import ticket_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,31 +58,34 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time updates.
 
-    Authentication is performed BEFORE accept() using the `token` query
-    parameter (e.g. wss://host/ws/updates?token=<jwt>).  Rejecting
-    pre-accept avoids allocating a file descriptor, I/O buffers, or an
-    entry in active_connections for unauthenticated clients.
+    Authentication is performed BEFORE accept() using a short-lived,
+    single-use `ticket` query parameter (e.g.
+    wss://host/ws/updates?ticket=<ticket>), minted in advance via
+    POST /ws/ticket. Unlike a raw JWT, a leaked ticket in an access log
+    or proxy trace is worthless: it expires in a few seconds and can
+    only ever be redeemed once.
 
-    All connection lifecycle operations are routed through ConnectionManager
-    so that accept() is called in exactly one place.
+    Rejecting pre-accept avoids allocating a file descriptor, I/O
+    buffers, or an entry in active_connections for unauthenticated
+    clients. All connection lifecycle operations are routed through
+    ConnectionManager so that accept() is called in exactly one place.
     """
-    token = websocket.query_params.get("token", "")
+    ticket = websocket.query_params.get("ticket", "")
 
     # ── Authenticate before accepting the handshake ───────────────────────
-    if not token:
-        await websocket.close(code=4001, reason="Missing token")
+    if not ticket:
+        await websocket.close(code=4001, reason="Missing ticket")
         return
 
     try:
-        from app.services.auth import verify_access_token
-        user_id = await verify_access_token(token)
+        user_id = ticket_store.redeem(ticket)
     except Exception as e:
-        logger.error(f"WebSocket auth error: {e}")
+        logger.error(f"WebSocket ticket redemption error: {e}")
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
     if not user_id:
-        await websocket.close(code=4001, reason="Invalid token")
+        await websocket.close(code=4001, reason="Invalid or expired ticket")
         return
 
     # ── Accept and register through the single authoritative path ────────
