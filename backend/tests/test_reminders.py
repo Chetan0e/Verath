@@ -44,6 +44,85 @@ class TestReminders:
         assert count >= 1
         mock_alerts_col.insert_one.assert_called()
 
+    async def test_z_suffixed_date_does_not_crash_comparison(self, monkeypatch):
+        """A memory date ending in 'Z' (timezone-aware) must not raise
+        'can't compare offset-naive and offset-aware datetimes'."""
+        from datetime import datetime, timedelta, timezone
+
+        # Aware future date, serialized with a trailing Z (the crashing case)
+        future_z = (
+            datetime.now(timezone.utc) + timedelta(hours=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        mock_memories_col = MagicMock()
+        mock_memories_col.find = MagicMock(return_value=_async_cursor([
+            {
+                "_id": "mem_z",
+                "user_id": "test_user",
+                "text": "Meeting soon",
+                "metadata": {
+                    "intent": "meeting",
+                    "entities": {"dates": [future_z]},
+                },
+            }
+        ]))
+
+        mock_alerts_col = MagicMock()
+        mock_alerts_col.find_one = AsyncMock(return_value=None)
+        mock_alerts_col.insert_one = AsyncMock()
+
+        mock_db = MagicMock()
+        mock_db.__getitem__ = MagicMock(side_effect=lambda name: {
+            "memories": mock_memories_col,
+            "alerts": mock_alerts_col,
+        }.get(name, MagicMock()))
+        monkeypatch.setattr("app.services.reminder_service.get_db", lambda: mock_db)
+
+        from app.services.reminder_service import check_and_fire_reminders
+
+        # Must not raise; the Z-date is aware and now is aware after the fix.
+        count = await check_and_fire_reminders()
+        assert count >= 1
+        mock_alerts_col.insert_one.assert_called()
+
+    async def test_naive_date_still_processed_without_error(self, monkeypatch):
+        """A naive date (no offset, e.g. from the dateparser fallback path)
+        is coerced to UTC and still compared without error."""
+        from datetime import datetime, timedelta
+
+        # Naive future date (no Z, no offset)
+        future_naive = (datetime.utcnow() + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+
+        mock_memories_col = MagicMock()
+        mock_memories_col.find = MagicMock(return_value=_async_cursor([
+            {
+                "_id": "mem_naive",
+                "user_id": "test_user",
+                "text": "Naive meeting",
+                "metadata": {
+                    "intent": "meeting",
+                    "entities": {"dates": [future_naive]},
+                },
+            }
+        ]))
+
+        mock_alerts_col = MagicMock()
+        mock_alerts_col.find_one = AsyncMock(return_value=None)
+        mock_alerts_col.insert_one = AsyncMock()
+
+        mock_db = MagicMock()
+        mock_db.__getitem__ = MagicMock(side_effect=lambda name: {
+            "memories": mock_memories_col,
+            "alerts": mock_alerts_col,
+        }.get(name, MagicMock()))
+        monkeypatch.setattr("app.services.reminder_service.get_db", lambda: mock_db)
+
+        from app.services.reminder_service import check_and_fire_reminders
+
+        count = await check_and_fire_reminders()
+        assert count >= 1
+        mock_alerts_col.insert_one.assert_called()
+
     async def test_get_upcoming_reminders_returns_correct_reminders_within_time_window(self, client: AsyncClient, monkeypatch, auth_headers):
         """Test that GET /reminders/upcoming returns correct reminders within time window."""
         # Mock get_upcoming_reminders
