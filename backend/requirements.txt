@@ -11,7 +11,7 @@ pydantic-settings==2.2.1
 # AI / LLM Providers
 # =========================
 groq>=1.5.0
-google-generativeai>=0.4.0
+google-generativeai>=0.8.6
 
 # =========================
 # Data Processing & Reports
