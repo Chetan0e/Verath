@@ -72,7 +72,7 @@ slowapi>=0.1.10
 # =========================
 pytest==8.1.1
 pytest-asyncio==0.23.6
-pytest-mock==3.14.0
+pytest-mock==3.15.1
 
 # =========================
 # Development Tools (Optional)
