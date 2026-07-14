@@ -48,7 +48,7 @@ redis>=5.0.0
 # =========================
 # Temporal Parsing
 # =========================
-dateparser>=1.2.0
+dateparser>=1.4.1
 
 # =========================
 # Database & Authentication
