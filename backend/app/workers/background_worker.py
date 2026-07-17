@@ -1,13 +1,12 @@
 import asyncio
 import logging
+import traceback
 import uuid
-from datetime import datetime
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from app.config import settings
 from app.workers.task_queue import (
     Task,
+    TaskStatus,
     TaskType,
     task_queue,
 )
@@ -15,92 +14,58 @@ from app.workers.task_queue import (
 logger = logging.getLogger(__name__)
 
 
-class TaskStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    DEAD = "dead"
-
-
-# Legacy → persistent queue state mapping used during migration.
-LEGACY_TO_PERSISTENT_STATUS = {
-    "PENDING": "QUEUED",
-    "PROCESSING": "PROCESSING",
-    "COMPLETED": "COMPLETED",
-    "FAILED": "FAILED",
-    "DEAD": "DEAD_LETTER",
-}
-
-
 # ============================================================================
-# Queue Migration Strategy
+# Persistent Task Queue Worker
 # ============================================================================
 #
-# Phase 1 (current):
-# - Preserve legacy background_worker interfaces
-# - Delegate orchestration behavior to task_queue.py
-# - Maintain backward compatibility for existing imports/routes
+# task_queue.py is the single orchestration backend: it owns persistence,
+# atomic claiming, and retry/dead-letter handling. This module is
+# responsible for the two things layered on top of that backend:
 #
-# Phase 2:
-# - Align task status semantics between legacy and persistent queues
-# - Remove duplicated retry/dead-letter orchestration paths
-#
-# Phase 3:
-# - Fully remove deprecated in-memory queue implementation
-# - Use task_queue.py as the single orchestration backend
-#
-# NOTE:
-# The in-memory queue remains temporarily as a compatibility layer during the
-# staged migration toward persistent queue orchestration.
+#   1. Turning public "enqueue a recording / compression job" calls into a
+#      structured (task_type, payload) record that task_queue can persist
+#      and hand back later — a callable can't survive a process restart, so
+#      no closures are stored, only plain data.
+#   2. Running the consumer loop that dequeues claimed tasks, dispatches
+#      each one to the handler registered for its task_type, and reports
+#      the outcome back through task_queue's existing status/retry API.
 # ============================================================================
 
-# Deprecated legacy in-memory queue retained temporarily for compatibility.
-_queue: asyncio.Queue = asyncio.Queue()
+POLL_INTERVAL_SECONDS = 5
+BASE_RETRY_DELAY_SECONDS = 30
 
-_worker_running = False
-
+_consumer_task: Optional[asyncio.Task] = None
 
 # ── Public: enqueue a job ────────────────────────────────────────────────────
 async def enqueue_task(
-    func: Callable,
-    args: tuple = (),
-    kwargs: Optional[Dict[str, Any]] = None,
-    task_name: str = "unnamed",
+    task_type: TaskType,
+    payload: Dict[str, Any],
+    user_id: str = "system",
 ) -> str:
     """
-    Enqueue a task using the persistent Mongo-backed queue backend.
+    Enqueue a task on the persistent Mongo-backed queue.
 
-    This preserves the existing background worker interface while
-    delegating orchestration behavior to task_queue.py.
+    payload must be JSON/BSON-serializable - it's what gets handed to the
+    task_type's registered handler once the consumer loop dequeues the
+    task, possibly after a restart, so it has to fully describe the work
+    on its own rather than closing over local variables.
     """
 
     task_id = str(uuid.uuid4())
-    kwargs = kwargs or {}
-
-    # Infer task type
-    if "record" in task_name.lower():
-        task_type = TaskType.RECORDING
-    else:
-        task_type = TaskType.COMPRESSION
 
     task = Task(
         task_id=task_id,
         task_type=task_type,
-        payload={
-            "task_name": task_name,
-            "args_repr": str(args)[:500],
-            "kwargs_repr": str(kwargs)[:500],
-        },
-        user_id="system",
+        payload=payload,
+        user_id=user_id,
     )
 
     success = await task_queue.enqueue(task)
 
     if not success:
-        raise RuntimeError(f"Failed to enqueue task: {task_name}")
+        raise RuntimeError(f"Failed to enqueue task: {task_type.value}")
 
-    logger.info(f"Enqueued persistent task {task_id} ({task_name})")
+    logger.info(f"Enqueued persistent task {task_id} ({task_type.value})")
 
     return task_id
 
@@ -118,108 +83,141 @@ async def get_task_status(task_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-# ── Legacy retry compatibility layer ─────────────────────────────────────────
+# ── Task dispatch: task_type → handler ───────────────────────────────────────
 #
-# NOTE:
-# Legacy retry/dead-letter orchestration paths are retained temporarily
-# during staged migration toward the persistent task queue backend.
-#
-# New task orchestration should use task_queue.py directly.
-#
-async def _run_with_retry(
-    task_id: str,
-    task_name: str,
-    func: Callable,
-    args: tuple,
-    kwargs: dict,
-):
-    """
-    Deprecated compatibility wrapper retained during migration.
+# Handlers take the task's persisted payload and user_id and do the actual
+# work. They should let exceptions propagate — _process_task() below is
+# what decides whether a failure means a retry or a dead-letter move.
+async def _handle_recording_task(payload: Dict[str, Any], user_id: str) -> None:
+    """Record and transcribe a session, then store it as a memory."""
 
-    The persistent queue backend should handle retry orchestration.
-    """
+    from app.services.audio import record_audio
+    from app.services.pipeline import process_audio
+
+    file_path = record_audio(
+        filename=payload.get("filename"),
+        duration=payload.get("duration"),
+    )
+
+    await process_audio(file_path, user_id)
+
+async def _handle_compression_task(payload: Dict[str, Any], user_id: str) -> None:
+    """Run daily memory-lifecycle promotion and archival for a user."""
+
+    from app.db.memory_lifecycle import memory_lifecycle_manager
+
+    await memory_lifecycle_manager.auto_promote_important_memories(user_id)
+    await memory_lifecycle_manager.enforce_lifecycle_limits(user_id)
+
+
+TASK_HANDLERS: Dict[TaskType, Callable[[Dict[str, Any], str], Any]] = {
+    TaskType.RECORDING: _handle_recording_task,
+    TaskType.COMPRESSION: _handle_compression_task,
+}
+
+
+# ── Consumer loop ─────────────────────────────────────────────────────────────
+async def _process_task(task: Task) -> None:
+    """Run a single claimed task and report the outcome back to task_queue."""
+
+    handler = TASK_HANDLERS.get(task.task_type)
+
+    if handler is None:
+        error = f"No handler registered for task type: {task.task_type}"
+        logger.error(error)
+        await task_queue.mark_for_retry(
+            task.task_id,
+            error_message=error,
+            stack_trace="",
+            retry_delay=BASE_RETRY_DELAY_SECONDS,
+        )
+        return
 
     try:
-        if asyncio.iscoroutinefunction(func):
-            await func(*args, **kwargs)
-        else:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: func(*args, **kwargs),
-            )
-
-        logger.info(
-            f"Legacy compatibility task completed: "
-            f"{task_id} ({task_name})"
-        )
+        await handler(task.payload, task.user_id)
+        await task_queue.update_status(task.task_id, TaskStatus.COMPLETED)
+        logger.info(f"Task {task.task_id} ({task.task_type.value}) completed")
 
     except Exception as e:
+        retry_delay = BASE_RETRY_DELAY_SECONDS * (2**task.retry_count)
         logger.error(
-            f"Legacy compatibility retry path failed "
-            f"for {task_id}: {e}"
+            f"Task {task.task_id} ({task.task_type.value}) failed: {e}",
+            exc_info=True,
         )
-        raise
+        await task_queue.mark_for_retry(
+            task.task_id,
+            error_message=str(e),
+            stack_trace=traceback.format_exc(),
+            retry_delay=retry_delay,
+        )
 
 
-# ── Worker loop ──────────────────────────────────────────────────────────────
-#
-# NOTE:
-# Deprecated legacy worker loop retained temporarily for backward
-# compatibility. Active orchestration has been migrated toward
-# task_queue.py.
-#
-# This loop should no longer receive newly enqueued tasks.
-#
-async def _worker_loop():
-    global _worker_running
+async def _consumer_loop() -> None:
+    """
+    Continuously poll the persistent queue and execute claimed tasks.
 
-    _worker_running = True
+    Runs for the lifetime of the app (started from main.py's lifespan).
+    Each iteration dequeues a batch of ready tasks and runs them one at a
+    time; it only sleeps when the queue comes back empty, so a backlog
+    drains without waiting out the poll interval between every task.
+    """
 
-    logger.info("Legacy background worker loop started")
+    logger.info("Persistent task queue consumer loop started")
 
     while True:
         try:
-            task_id, task_name, func, args, kwargs = await _queue.get()
+            tasks = await task_queue.dequeue()
 
-            await _run_with_retry(
-                task_id,
-                task_name,
-                func,
-                args,
-                kwargs,
-            )
+            if not tasks:
+                await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                continue
 
-            _queue.task_done()
+            for task in tasks:
+                await _process_task(task)
 
         except asyncio.CancelledError:
-            logger.info("Legacy background worker shutting down")
-            break
+            logger.info("Persistent task queue consumer loop shutting down")
+            raise
 
         except Exception as e:
-            logger.error(f"Unexpected worker loop error: {e}")
+            logger.error(f"Unexpected consumer loop error: {e}", exc_info=True)
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
-def start_worker():
+def start_worker() -> None:
     """
-    Backward-compatible startup hook.
+    Schedule the persistent task queue consumer loop as a background task.
 
-    Legacy in-memory orchestration has been deprecated in favor
-    of the persistent Mongo-backed queue implementation in
-    task_queue.py.
-
-    This compatibility layer intentionally preserves the existing
-    public worker interface while migration occurs incrementally.
+    Called once from the FastAPI lifespan on startup, after the Mongo
+    connection is established.
     """
 
-    logger.info(
-        "Legacy background worker startup skipped "
-        "(persistent task queue is now primary)"
-    )
+    global _consumer_task
+    _consumer_task = asyncio.create_task(_consumer_loop())
+    logger.info("Persistent task queue consumer loop scheduled")
 
 
-# ── Background worker compatibility wrapper ──────────────────────────────────
+async def stop_worker() -> None:
+    """Cancel the consumer loop and wait for it to exit, for clean shutdown."""
+ 
+    global _consumer_task
+
+    if _consumer_task is None:
+        return
+
+    _consumer_task.cancel()
+    try:
+        await _consumer_task
+    except asyncio.CancelledError:
+        pass
+
+    _consumer_task = None
+    logger.info("Persistent task queue consumer loop stopped")
+
+
+# ── Background worker public interface ───────────────────────────────────────
 class BackgroundWorker:
-    """Compatibility wrapper for background worker functionality."""
+    """Public interface for enqueueing and inspecting persistent queue tasks."""
 
     async def enqueue_recording(
         self,
@@ -228,26 +226,16 @@ class BackgroundWorker:
     ) -> str:
         """Enqueue recording session processing."""
 
-        from app.services.pipeline import process_audio
-
-        async def process_recording():
-            try:
-                from app.services.audio import record_audio
-
-                file_path = record_audio(
-                    filename=session.filename,
-                    duration=session.duration,
-                )
-
-                await process_audio(file_path, user_id)
-
-            except Exception as e:
-                logger.error(f"Recording processing failed: {e}")
-                raise
+        payload = {
+            "filename": session.filename,
+            "duration": session.duration,
+            "session_type": session.session_type,
+        }
 
         return await enqueue_task(
-            func=process_recording,
-            task_name=f"recording_{session.session_type}",
+            task_type=TaskType.RECORDING,
+            payload=payload,
+            user_id=user_id,
         )
 
     async def get_task_status(
@@ -264,25 +252,10 @@ class BackgroundWorker:
     ) -> str:
         """Schedule daily memory compression."""
 
-        from app.db.memory_lifecycle import memory_lifecycle_manager
-
-        async def compress_memories():
-            try:
-                await memory_lifecycle_manager.auto_promote_important_memories(
-                    user_id
-                )
-
-                await memory_lifecycle_manager.enforce_lifecycle_limits(
-                    user_id
-                )
-
-            except Exception as e:
-                logger.error(f"Compression failed: {e}")
-                raise
-
         return await enqueue_task(
-            func=compress_memories,
-            task_name="daily_compression",
+            task_type=TaskType.COMPRESSION,
+            payload={},
+            user_id=user_id,
         )
 
     async def get_queue_stats(self) -> Dict[str, Any]:

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.logging_config import setup_logging
-from app.workers.background_worker import start_worker
+from app.workers.background_worker import start_worker, stop_worker
 from app.services.reminder_service import check_and_fire_reminders
 from app.services.digest import run_weekly_digests
 from app.services.database import get_db
@@ -160,6 +160,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     _scheduler.shutdown(wait=False)
+    await stop_worker()
     await close_mongo_connection()
     logger.info("Verath shut down cleanly")
 

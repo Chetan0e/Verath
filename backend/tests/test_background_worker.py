@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
@@ -9,7 +11,7 @@ class TestBackgroundWorker:
         self,
         monkeypatch,
     ):
-        """Test enqueue_task delegates to persistent queue backend."""
+        """enqueue_recording must persist a reconstructable RECORDING task."""
 
         mock_queue_backend = MagicMock()
         mock_queue_backend.enqueue = AsyncMock(return_value=True)
@@ -19,18 +21,32 @@ class TestBackgroundWorker:
             mock_queue_backend,
         )
 
-        from app.workers.background_worker import enqueue_task
+        from app.workers.background_worker import background_worker
+        from app.workers.task_queue import TaskStatus, TaskType
 
-        async def dummy_func():
-            pass
+        session = SimpleNamespace(
+            filename="session.wav",
+            duration=30,
+            session_type="lecture",
+        )
 
-        task_id = await enqueue_task(
-            dummy_func,
-            task_name="test_task",
+        task_id = await background_worker.enqueue_recording(
+            session,
+            "user-1",
         )
 
         assert task_id is not None
         mock_queue_backend.enqueue.assert_called_once()
+
+        persisted_task = mock_queue_backend.enqueue.call_args[0][0]
+        assert persisted_task.status == TaskStatus.QUEUED
+        assert persisted_task.task_type == TaskType.RECORDING
+        assert persisted_task.user_id == "user-1"
+        assert persisted_task.payload == {
+            "filename": "session.wav",
+            "duration": 30,
+            "session_type": "lecture",
+        }
 
     @pytest.mark.skip(
         reason="Legacy retry path deprecated during queue migration"
