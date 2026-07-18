@@ -23,12 +23,12 @@ class TestQueueMigrationIntegration:
 
         from app.workers.background_worker import enqueue_task
 
-        async def dummy_task():
-            return True
+        from app.workers.task_queue import TaskType
 
         task_id = await enqueue_task(
-            dummy_task,
-            task_name="integration_test_task",
+            TaskType.COMPRESSION,
+            {"note": "integration_test_task"},
+            user_id="user-1",
         )
 
         assert task_id is not None
@@ -94,16 +94,26 @@ class TestQueueMigrationIntegration:
 
         assert result is True
 
-    async def test_legacy_worker_startup_remains_backward_compatible(
+    async def test_start_worker_schedules_consumer_loop_and_returns_none(
         self,
         monkeypatch,
     ):
         """
-        Ensure legacy startup hook remains callable during migration.
+        start_worker() must schedule the consumer loop in the background
+        and return immediately, without blocking the FastAPI startup path.
         """
 
-        from app.workers.background_worker import start_worker
+        mock_queue_backend = MagicMock()
+        mock_queue_backend.dequeue = AsyncMock(return_value=[])
+
+        monkeypatch.setattr(
+            "app.workers.background_worker.task_queue",
+            mock_queue_backend,
+        )
+
+        from app.workers.background_worker import start_worker, stop_worker
 
         result = start_worker()
-
         assert result is None
+        # Clean up the scheduled task so it doesn't keep polling after the test.
+        await stop_worker()
