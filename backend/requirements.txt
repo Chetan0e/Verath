@@ -25,7 +25,7 @@ reportlab
 # Embeddings & Vector Search
 # =========================
 chromadb>=1.5.9
-sentence-transformers==2.7.0
+sentence-transformers==5.6.0
 
 # =========================
 # Audio & Speech Processing
