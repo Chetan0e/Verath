@@ -35,7 +35,7 @@ faster-whisper>=1.2.1
 
 # Optional Speaker Diarization
 pyannote.audio>=4.0.7
-torch>=2.1.0
+torch>=2.13.0
 torchaudio>=2.1.0
 
 # =========================
