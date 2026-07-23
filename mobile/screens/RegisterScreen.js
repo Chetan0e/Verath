@@ -7,6 +7,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../config";
 
 const { width } = Dimensions.get("window");
@@ -30,9 +31,37 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
         username,
         password,
       });
+
       if (response.status === 200 || response.status === 201) {
-        Alert.alert("Success", "Neural profile created! Please establish link.");
-        onRegisterSuccess();
+        // FIX (#244): Signup only creates the account — it does not return
+        // an auth token. Previously onRegisterSuccess() was called here
+        // directly, which just flipped the app back to the login screen
+        // with isAuthenticated still false and no token in storage.
+        //
+        // To actually authenticate the user post-registration (mirroring
+        // onLoginSuccess in App.js), we log in immediately with the same
+        // credentials, store the resulting token the same way LoginScreen
+        // does, and only then call onRegisterSuccess(). If this second
+        // step fails for any reason, we fall back to the login screen
+        // with a clear message rather than pretending the user is in.
+        try {
+          const loginResponse = await axios.post(`${API_BASE}/auth/login`, {
+            username,
+            password,
+          });
+          const token = loginResponse.data?.access_token;
+          if (token) {
+            await AsyncStorage.setItem("verath_token", token);
+            onRegisterSuccess();
+          } else {
+            Alert.alert("Account Created", "Please log in to continue.");
+            onSwitchToLogin();
+          }
+        } catch (loginError) {
+          console.error(loginError);
+          Alert.alert("Account Created", "Please log in to continue.");
+          onSwitchToLogin();
+        }
       } else {
         Alert.alert("Registration Failed", response.data.detail || "Error");
       }
