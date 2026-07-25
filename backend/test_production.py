@@ -218,10 +218,17 @@ def main():
     if tokens:
         # Test 3: Refresh Token
         new_tokens = test_refresh_token(tokens)
-        results.append(("Refresh Token", new_tokens is not None))
-        
+        results.append(("Refresh Token", bool(new_tokens)))
+
         # Test 4: Logout
-        results.append(("Logout", test_logout(new_tokens or tokens)))
+        # NOTE: Do NOT fall back to the old tokens if refresh failed.
+        # `new_tokens or tokens` would silently reuse stale/potentially
+        # revoked credentials and mask the refresh failure.
+        if new_tokens:
+            results.append(("Logout", test_logout(new_tokens)))
+        else:
+            print("\n⚠️  Skipping Logout test — refresh failed, refusing to fall back to stale tokens")
+            results.append(("Logout", False))
     
     # Test 5: Extraction Pipeline
     results.append(("Extraction Pipeline", test_pipeline_extract()))
