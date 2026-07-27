@@ -85,7 +85,15 @@ export default function App() {
       <View style={styles.container}>
         {isRegistering ? (
           <RegisterScreen
-            onRegisterSuccess={() => setIsRegistering(false)}
+            onRegisterSuccess={() => {
+              // Mirror onLoginSuccess: registration stores the auth token
+              // the same way login does, so we just need to flip
+              // isAuthenticated here too. Previously this only reset
+              // isRegistering, which sent the user back to a blank
+              // LoginScreen instead of into the app (#244).
+              setIsRegistering(false);
+              setIsAuthenticated(true);
+            }}
             onSwitchToLogin={() => setIsRegistering(false)}
           />
         ) : (
