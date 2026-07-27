@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi import status
+from pymongo.errors import DuplicateKeyError
 from app.services.auth import (
     create_access_token,
     create_refresh_token,
@@ -463,3 +464,27 @@ class TestAuth:
         result = await verify_access_token(token)
 
         assert result == "testuser"
+
+class TestAuthServices:
+    """Test Authentication Services"""
+
+    async def test_create_user_returns_false_on_duplicate_key(self, monkeypatch):
+
+        # Simulate MongoDB rejecting a duplicate username
+
+        mock_error = DuplicateKeyError("duplicate username", code=11000)
+
+        mock_col = MagicMock()
+        mock_col.insert_one = AsyncMock(side_effect=mock_error)
+
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_col
+
+        # Replace the real database with the mocked collection
+        
+        monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
+
+        result = await create_user("existinguser", "password123")
+
+        assert result is False
+        mock_col.insert_one.assert_awaited_once()
