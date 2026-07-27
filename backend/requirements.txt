@@ -64,7 +64,7 @@ python-multipart>=0.0.32
 # =========================
 requests>=2.34.2
 httpx==0.28.1
-tenacity==8.2.3
+tenacity==9.1.4
 slowapi>=0.1.10
 
 # =========================
