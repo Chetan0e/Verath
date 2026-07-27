@@ -469,6 +469,8 @@ class TestAuthServices:
     """Test Authentication Services"""
 
     async def test_create_user_returns_false_on_duplicate_key(self, monkeypatch):
+        
+        """Test that create_user returns False when MongoDB raises DuplicateKeyError."""
 
         # Simulate MongoDB rejecting a duplicate username
 
@@ -481,7 +483,7 @@ class TestAuthServices:
         mock_db.__getitem__.return_value = mock_col
 
         # Replace the real database with the mocked collection
-        
+
         monkeypatch.setattr("app.services.auth.get_db", lambda: mock_db)
 
         result = await create_user("existinguser", "password123")
