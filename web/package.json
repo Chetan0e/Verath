@@ -17,7 +17,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.2",
     "postcss": "^8.5.20",
     "tailwindcss": "^4.3.3",
