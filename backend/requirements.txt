@@ -1,7 +1,7 @@
 # =========================
 # Core Framework
 # =========================
-fastapi>=0.138.0
+fastapi>=0.140.0
 uvicorn[standard]>=0.24.0
 python-dotenv>=1.2.2
 pydantic>=2.13.4
