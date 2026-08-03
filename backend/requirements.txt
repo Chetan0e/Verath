@@ -53,7 +53,7 @@ dateparser>=1.4.1
 # =========================
 # Database & Authentication
 # =========================
-motor>=3.3.0
+motor>=3.7.1
 python-jose[cryptography]==3.5.0
 pyjwt>=2.13.0
 bcrypt>=5.0.0
