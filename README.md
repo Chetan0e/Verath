@@ -623,6 +623,14 @@ python scripts/record_cli.py --duration 15
 
 Requires a running backend and valid auth token in environment or config as implemented in the script.
 
+### Storage integrity checker
+
+Run the storage integrity checker to verify that MongoDB and ChromaDB are reachable before performing storage integrity operations.
+
+```bash
+cd backend
+python tools/storage_integrity.py
+
 ---
 
 ## Clients: Web & Mobile
