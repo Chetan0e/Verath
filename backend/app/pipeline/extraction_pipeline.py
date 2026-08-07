@@ -21,27 +21,28 @@ class ExtractionPipeline:
         r'\bsorry\b'
     ]
     
-    # Intent detection patterns
+    # Intent detection patterns (order matters: first match wins, so more
+    # specific intents are listed before broader ones they overlap with)
     INTENT_PATTERNS = {
+        'reminder': [
+            r'\bremind\b', r'\bdon\'t forget\b', r'\bremember\b',
+            r'\bnote\b', r'\bmake sure\b'
+        ],
+        'task': [
+            r'\btask\b', r'\bto do\b', r'\bneed to\b', r'\bhave to\b',
+            r'\bgotta\b', r'\bshould\b'
+        ],
         'meeting': [
             r'\bmeet\b', r'\bmeeting\b', r'\bcall\b', r'\bconference\b', 
             r'\bdiscuss\b', r'\bappointment\b', r'\bget together\b'
         ],
         'deadline': [
             r'\bdeadline\b', r'\bdue\b', r'\bsubmit\b', r'\bcomplete by\b',
-            r'\bfinish by\b', r'\bneed to\b'
-        ],
-        'task': [
-            r'\btask\b', r'\bto do\b', r'\bneed to\b', r'\bhave to\b',
-            r'\bgotta\b', r'\bshould\b'
+            r'\bfinish by\b'
         ],
         'commitment': [
             r'\bpromise\b', r'\bcommit\b', r'\bagree\b', r'\bwill\b',
             r'\bsure\b', r'\babsolutely\b'
-        ],
-        'reminder': [
-            r'\bremind\b', r'\bdon\'t forget\b', r'\bremember\b',
-            r'\bnote\b', r'\bmake sure\b'
         ]
     }
     
