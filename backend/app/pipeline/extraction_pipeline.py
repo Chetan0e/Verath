@@ -115,15 +115,20 @@ class ExtractionPipeline:
     
     def _detect_correction(self, text: str) -> tuple[bool, str]:
         """Detect speech corrections and handle them using segment analysis."""
-        # Split into segments
-        segments = re.split(r'(?<=[.!?])\s+|(?<=\.\.\.)\s*', text)
+        correction_marker = r'no\s+no|wait(?!\s+for)|actually|sorry|correction|i\s+mean|not\s+that'
+
+        # Split into segments; also break right before a correction marker so it
+        # gets its own segment even without preceding sentence-ending punctuation
+        segments = re.split(
+            rf'(?<=[.!?])\s+|(?<=\.\.\.)\s*|(?=\b(?:{correction_marker})\b)', text
+        )
         segments = [s.strip() for s in segments if s.strip()]
         
         if not segments:
             return False, text
 
         # Detection pattern for segment starts
-        correction_start_pattern = r'^(?:no\s+no|wait(?!\s+for)|actually|sorry|correction|i\s+mean|not\s+that)+(.*)$'
+        correction_start_pattern = rf'^(?:{correction_marker})+(.*)$'
         
         corrected_segments = []
         has_correction = False
