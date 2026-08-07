@@ -189,6 +189,9 @@ class ExtractionPipeline:
                     'RELATIVE_BASE': datetime.utcnow(),
                     'PREFER_DATES_FROM': 'future'
                 })
+
+                if not parsed:
+                    parsed = self._resolve_next_weekday(phrase)
                 
                 if parsed:
                     temporal_entities["dates"].append({
@@ -198,6 +201,17 @@ class ExtractionPipeline:
                     })
         
         return temporal_entities
+
+    def _resolve_next_weekday(self, phrase: str) -> Optional[datetime]:
+        """Compute 'next <weekday>' directly; dateparser returns None for this phrasing."""
+        weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        weekday_name = phrase.lower().replace('next', '').strip()
+        if weekday_name not in weekdays:
+            return None
+
+        today = datetime.utcnow()
+        days_ahead = (weekdays.index(weekday_name) - today.weekday()) % 7 or 7
+        return today + timedelta(days=days_ahead)
     
     def _detect_intent(self, text: str) -> Optional[str]:
         """Rule-based intent detection."""
