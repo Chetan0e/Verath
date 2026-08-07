@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 import bcrypt
@@ -10,6 +10,8 @@ from jose import JWTError, jwt
 
 from app.config import settings
 from app.services.database import get_db
+
+from pymongo.errors import DuplicateKeyError
 
 
 logger = logging.getLogger(__name__)
@@ -133,15 +135,16 @@ def decode_access_token(token: str) -> Optional[Dict]:
 async def create_user(username: str, password: str) -> bool:
     username = username.lower().strip()
     db = get_db()
-    existing = await db["users"].find_one({"username": username})
-    if existing:
+
+    try:
+        await db["users"].insert_one({
+            "username": username,
+            "password_hash": hash_password(password),
+            "created_at": datetime.now(timezone.utc),
+        })
+        return True
+    except DuplicateKeyError:
         return False
-    await db["users"].insert_one({
-        "username": username,
-        "password_hash": hash_password(password),
-        "created_at": datetime.utcnow(),
-    })
-    return True
 
 
 async def authenticate_user(username: str, password: str) -> Optional[str]:
