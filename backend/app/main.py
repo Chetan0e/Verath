@@ -193,9 +193,36 @@ app.add_exception_handler(VerathException, verath_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
+def _resolve_cors_origins() -> list[str]:
+    """
+    Resolve the list of allowed CORS origins.
+
+    A wildcard ("*") must never be combined with allow_credentials=True:
+    browsers reject credentialed responses against a literal "*", and
+    Starlette's CORSMiddleware falls back to reflecting whatever Origin
+    header the request sent — which effectively allows any origin to make
+    credentialed requests. So "*" is stripped out here regardless of env,
+    and we fall back to safe localhost-only defaults if nothing is left.
+    """
+    raw_origins = settings.allow_cors.split(",")
+    origins = [o.strip() for o in raw_origins if o.strip()]
+
+    if "*" in origins:
+        logger.warning(
+            "ALLOW_CORS contains '*' while allow_credentials=True is set. "
+            "Dropping '*' — set ALLOW_CORS to a comma-separated list of "
+            "real origins instead."
+        )
+        origins = [o for o in origins if o != "*"]
+
+    if not origins:
+        origins = ["http://localhost:8080", "http://localhost:3000"]
+
+    return origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allow_cors.split(",") if settings.env == "production" else ["*"],
+    allow_origins=_resolve_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

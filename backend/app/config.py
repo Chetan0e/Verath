@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     default_record_seconds: int = 10
-    allow_cors: str = "*"
+    allow_cors: str = "http://localhost:8080,http://localhost:3000"
     env: str = "development"
 
     # ── Storage ───────────────────────────────────────────────────────────────
