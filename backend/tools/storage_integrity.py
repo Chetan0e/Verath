@@ -60,7 +60,7 @@ async def main() -> int:
     except Exception as exc:
         if mongo is None:
             print("✗ MongoDB connection failed")
-            print(f"  URI: {settings.mongo_uri}")
+            print("      Verify MONGO_URI configuration.")
             print()
             print("Possible causes:")
             print("  • MongoDB is not installed")
