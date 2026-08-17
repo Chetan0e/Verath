@@ -16,7 +16,7 @@ google-genai>=2.16.0
 # =========================
 # Data Processing & Reports
 # =========================
-numpy>=1.24.0
+numpy>=2.5.2
 scipy>=1.18.0
 networkx>=3.6.1
 reportlab
