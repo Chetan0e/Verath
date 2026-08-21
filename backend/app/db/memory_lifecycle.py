@@ -113,7 +113,7 @@ class MemoryLifecycleManager:
                 }).sort("timestamp", 1).limit(excess)
                 
                 async for mem in cursor:
-                    if mem.get("importance", 0) >= self.IMPORTANCE_THRESHOLD:
+                    if mem.get("metadata", {}).get("importance", 0) >= self.IMPORTANCE_THRESHOLD:
                         await self.promote_to_long_term(user_id, mem["_id"])
                     else:
                         await self.archive_memory(user_id, mem["_id"])

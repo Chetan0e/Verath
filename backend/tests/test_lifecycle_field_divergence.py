@@ -9,6 +9,8 @@ Verifies that:
 5. auto_promote_important_memories increments promoted_count and does not archive
    memories that passed the importance gate.
 6. Full short_term → long_term → archived lifecycle transition succeeds end-to-end.
+7. enforce_lifecycle_limits reads metadata.importance (not top-level importance)
+   when deciding promote vs archive on short-term overflow.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
@@ -330,3 +332,42 @@ class TestFullLifecycleTransition:
         assert stats["short_term"] == 5
         assert stats["long_term"] == 2
         assert stats["archived"] == 1
+
+
+# ── 7. enforce_lifecycle_limits uses metadata.importance ─────────────────────
+
+class TestEnforceLifecycleLimitsUsesMetadataImportance:
+    async def test_high_importance_doc_is_promoted_not_archived(self, monkeypatch):
+        """A short-term memory over the importance threshold must be promoted
+        when the short-term cap is exceeded, not archived like the rest."""
+        doc = {"_id": "mem-hi", "metadata": {"importance": 0.9}}
+
+        mock_col = _make_collection([doc], modified_count=1, count_return=101)
+        mock_db = MagicMock()
+        mock_db.memories = mock_col
+
+        monkeypatch.setattr("app.db.memory_lifecycle.get_db", lambda: mock_db)
+
+        from app.db.memory_lifecycle import MemoryLifecycleManager
+        await MemoryLifecycleManager().enforce_lifecycle_limits("u1")
+
+        for c in mock_col.update_one.call_args_list:
+           update = c[0][1]
+           assert update["$set"].get("lifecycle_stage") != "archived", \
+               "high-importance doc must be promoted, not archived, on short-term overflow"
+    async def test_low_importance_doc_is_still_archived(self, monkeypatch):
+        """A short-term memory under the threshold must still be archived —
+        the fix must not flip to promoting everything either."""
+        doc = {"_id": "mem-lo", "metadata": {"importance": 0.1}}
+
+        mock_col = _make_collection([doc], modified_count=1, count_return=101)
+        mock_db = MagicMock()        
+        mock_db.memories = mock_col
+
+        monkeypatch.setattr("app.db.memory_lifecycle.get_db", lambda: mock_db)
+
+        from app.db.memory_lifecycle import MemoryLifecycleManager
+        await MemoryLifecycleManager().enforce_lifecycle_limits("u1")
+
+        update = mock_col.update_one.call_args[0][1]
+        assert update["$set"].get("lifecycle_stage") == "archived"
