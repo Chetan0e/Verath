@@ -260,3 +260,80 @@ class TestCompressionHandler:
             "user-77"
         )
         mock_manager.enforce_lifecycle_limits.assert_called_once_with("user-77")
+
+
+class TestHeartbeatRenewal:
+    """_process_task() must keep a claimed task's heartbeat alive while its handler runs."""
+
+    async def test_heartbeat_is_renewed_while_handler_runs(self, monkeypatch):
+        monkeypatch.setattr(
+            "app.workers.background_worker.HEARTBEAT_INTERVAL_SECONDS", 0.01
+        )
+
+        mock_queue_backend = MagicMock()
+        mock_queue_backend.update_status = AsyncMock(return_value=True)
+        mock_queue_backend.update_heartbeat = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.workers.background_worker.task_queue", mock_queue_backend
+        )
+
+        async def slow_handler(payload, user_id):
+            await asyncio.sleep(0.05)
+
+        monkeypatch.setattr(
+            "app.workers.background_worker.TASK_HANDLERS",
+            {TaskType.RECORDING: slow_handler},
+        )
+
+        from app.workers.background_worker import _process_task
+
+        task = Task(
+            task_id="hb-1", task_type=TaskType.RECORDING, payload={}, user_id="user-1"
+        )
+        await _process_task(task)
+
+        assert mock_queue_backend.update_heartbeat.call_count >= 2
+        mock_queue_backend.update_heartbeat.assert_called_with("hb-1")
+
+    async def test_heartbeat_loop_is_cancelled_even_when_handler_fails(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "app.workers.background_worker.HEARTBEAT_INTERVAL_SECONDS", 0.01
+        )
+
+        mock_queue_backend = MagicMock()
+        mock_queue_backend.mark_for_retry = AsyncMock(return_value=True)
+        mock_queue_backend.update_heartbeat = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            "app.workers.background_worker.task_queue", mock_queue_backend
+        )
+
+        async def failing_handler(payload, user_id):
+            await asyncio.sleep(0.02)
+            raise ValueError("boom")
+
+        monkeypatch.setattr(
+            "app.workers.background_worker.TASK_HANDLERS",
+            {TaskType.RECORDING: failing_handler},
+        )
+
+        created = []
+        real_create_task = asyncio.create_task
+
+        def tracking_create_task(coro, *a, **kw):
+            t = real_create_task(coro, *a, **kw)
+            created.append(t)
+            return t
+
+        monkeypatch.setattr("asyncio.create_task", tracking_create_task)
+
+        from app.workers.background_worker import _process_task
+
+        task = Task(
+            task_id="hb-2", task_type=TaskType.RECORDING, payload={}, user_id="user-1"
+        )
+        await _process_task(task)  # must not raise or hang
+
+        mock_queue_backend.mark_for_retry.assert_called_once()
+        assert created[0].done() and created[0].cancelled()

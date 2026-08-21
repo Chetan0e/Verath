@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS = 5
 BASE_RETRY_DELAY_SECONDS = 30
+HEARTBEAT_INTERVAL_SECONDS = 60  # must stay well under TaskQueue.HEARTBEAT_TIMEOUT (5 min)
 
 _consumer_task: Optional[asyncio.Task] = None
 
@@ -117,6 +118,18 @@ TASK_HANDLERS: Dict[TaskType, Callable[[Dict[str, Any], str], Any]] = {
 
 
 # ── Consumer loop ─────────────────────────────────────────────────────────────
+async def _heartbeat_loop(task_id: str) -> None:
+    """Renew a claimed task's heartbeat every HEARTBEAT_INTERVAL_SECONDS.
+
+    Runs alongside a handler for as long as _process_task lets it; without
+    this, a handler running past TaskQueue.HEARTBEAT_TIMEOUT looks stale and
+    dequeue() reclaims it for another worker while it's still in progress.
+    """
+    while True:
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+        await task_queue.update_heartbeat(task_id)
+
+
 async def _process_task(task: Task) -> None:
     """Run a single claimed task and report the outcome back to task_queue."""
 
@@ -133,6 +146,7 @@ async def _process_task(task: Task) -> None:
         )
         return
 
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(task.task_id))
     try:
         await handler(task.payload, task.user_id)
         await task_queue.update_status(task.task_id, TaskStatus.COMPLETED)
@@ -150,6 +164,13 @@ async def _process_task(task: Task) -> None:
             stack_trace=traceback.format_exc(),
             retry_delay=retry_delay,
         )
+
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
 
 
 async def _consumer_loop() -> None:
