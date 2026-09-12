@@ -20,7 +20,7 @@
     "expo": "^49.0.0",
     "expo-av": "~13.4.1",
     "expo-blur": "~12.4.1",
-    "expo-file-system": "~15.4.5",
+    "expo-file-system": "~57.0.6",
     "expo-font": "~11.4.0",
     "expo-keep-awake": "~12.3.0",
     "expo-linear-gradient": "~12.3.0",
