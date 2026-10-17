@@ -330,6 +330,7 @@ function renderReminderItem(reminder, index) {
     const date = reminder.due_date ? new Date(reminder.due_date) : null;
     const day = date ? date.getDate() : '—';
     const month = date ? date.toLocaleString('default', { month: 'short' }) : '';
+    const alertId = reminder._id || reminder.id || '';
     
     return `
         <div class="reminder-item animate-fade-up" style="animation-delay: ${index * 40}ms">
@@ -338,10 +339,14 @@ function renderReminderItem(reminder, index) {
                 <div class="reminder-date-month">${month}</div>
             </div>
             <div class="reminder-content">
-                <div class="reminder-title">${reminder.title || reminder.text || '—'}</div>
-                <div class="reminder-source">${reminder.source_text ? reminder.source_text.substring(0, 60) + '...' : ''}</div>
+                <div class="reminder-title">${escapeHtml(reminder.title || reminder.text || '—')}</div>
+                <div class="reminder-source">${reminder.source_text ? escapeHtml(reminder.source_text.substring(0, 60)) + '...' : ''}</div>
             </div>
             <span class="badge badge-intent-${reminder.intent || 'reminder'}">${reminder.intent || 'reminder'}</span>
+            ${alertId ? `
+            <button class="btn btn-ghost btn-sm" onclick="acknowledgeReminder('${alertId}')" title="Dismiss / Acknowledge" style="color:var(--text-tertiary);margin-left:8px;">
+                <i class="fa-solid fa-check"></i>
+            </button>` : ''}
         </div>
     `;
 }
@@ -350,22 +355,30 @@ function renderReminderItem(reminder, index) {
 async function loadMemories() {
     const container = document.getElementById('memories-grid');
     const intentFilter = document.getElementById('intent-filter').value;
-    const importanceFilter = document.getElementById('importance-filter').value;
+    const importanceFilter = parseFloat(document.getElementById('importance-filter').value || '0');
     
     // Show loading state
     container.classList.add('state-loading');
     container.innerHTML = '<div class="skeleton" style="width:100%;height:200px;border-radius:var(--radius-lg)"></div>'.repeat(3);
     
     try {
-        let url = `${API_BASE}/query?q=all&limit=50`;
-        if (intentFilter) url += `&intent=${intentFilter}`;
-        if (importanceFilter > 0) url += `&min_importance=${importanceFilter / 100}`;
+        let url = `${API_BASE}/export?format=json`;
+        if (intentFilter) url += `&intent_filter=${encodeURIComponent(intentFilter)}`;
         
         const res = await authFetch(url);
         if (!res) return;
         
         const data = await res.json();
-        const memories = data.memories || data.results || [];
+        let memories = data.memories || [];
+
+        // Apply client-side minimum importance filter
+        if (importanceFilter > 0) {
+            const minImp = importanceFilter / 100;
+            memories = memories.filter(m => {
+                const imp = m.importance ?? m.metadata?.importance ?? 0;
+                return imp >= minImp;
+            });
+        }
         
         if (memories.length === 0) {
             container.innerHTML = `
@@ -401,29 +414,41 @@ async function loadMemories() {
 
 // Render memory card
 function renderMemoryCard(memory, index) {
+    const memId = memory._id || memory.id || '';
+    const meta = memory.metadata || {};
+    const intent = memory.intent || meta.intent || 'general';
+    const importance = memory.importance ?? meta.importance ?? 0;
+    const importancePct = Math.round(importance * 100);
+    const speaker = memory.speaker || meta.speaker || '';
+    const summary = memory.summary || meta.summary || '';
+    const rawTs = memory.created_at || memory.timestamp || '';
+    const ts = rawTs ? new Date(rawTs).toLocaleString() : '—';
+    
     const intentColors = {
         meeting: 'intent-meeting', deadline: 'intent-deadline',
         task: 'intent-task', reminder: 'intent-reminder', commitment: 'intent-commitment'
     };
-    const importancePct = Math.round((memory.importance || 0) * 100);
-    const ts = memory.timestamp ? new Date(memory.timestamp).toLocaleString() : '—';
     
     const importanceColor = importancePct > 70 ? 'var(--accent-warm)' : importancePct > 40 ? 'var(--accent-primary)' : 'var(--text-muted)';
     
     return `
-        <div class="memory-card animate-fade-up" style="animation-delay: ${index * 40}ms">
-            <div class="memory-card-header">
-                <span class="badge ${intentColors[memory.intent] || 'badge-intent-task'}">${memory.intent || 'general'}</span>
+        <div class="memory-card animate-fade-up" style="animation-delay: ${index * 40}ms" id="card-${memId}">
+            <div class="memory-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                <span class="badge ${intentColors[intent] || 'badge-intent-task'}">${intent}</span>
                 <span class="memory-time">${ts}</span>
+                ${memId ? `
+                <button class="btn-ghost btn-sm" onclick="deleteMemory('${memId}')" title="Delete memory" style="color:var(--accent-warm,#ef4444);border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>` : ''}
             </div>
-            <p class="memory-text">${memory.text || '—'}</p>
-            ${memory.summary ? `<p class="memory-summary">${memory.summary}</p>` : ''}
+            <p class="memory-text">${escapeHtml(memory.text || '—')}</p>
+            ${summary ? `<p class="memory-summary" style="font-size:0.8125rem;color:var(--text-secondary);font-style:italic;margin-top:4px;">${escapeHtml(summary)}</p>` : ''}
             <div class="memory-footer">
                 <div class="importance-bar">
                     <div class="importance-fill" style="width:${importancePct}%;background:${importanceColor}"></div>
                 </div>
                 <span class="importance-label">${importancePct}%</span>
-                ${memory.speaker ? `<span class="speaker-tag"><i class="fa-solid fa-user"></i> ${memory.speaker}</span>` : ''}
+                ${speaker ? `<span class="speaker-tag"><i class="fa-solid fa-user"></i> ${escapeHtml(speaker)}</span>` : ''}
             </div>
         </div>
     `;
@@ -588,9 +613,202 @@ function updateSystemStatus(connected) {
     }
 }
 
-// Trigger record (placeholder - would integrate with recording functionality)
+// Trigger record modal
 function triggerRecord() {
-    alert('Recording functionality would be triggered here. This integrates with the backend /record endpoint.');
+    const modal = document.getElementById('record-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('capture-text-input');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        const file = document.getElementById('capture-audio-file');
+        if (file) file.value = '';
+        const status = document.getElementById('capture-status');
+        if (status) status.style.display = 'none';
+        setCaptureTab('text');
+    }
+}
+
+function closeRecordModal() {
+    const modal = document.getElementById('record-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function setCaptureTab(tab) {
+    const textPane = document.getElementById('capture-text-pane');
+    const audioPane = document.getElementById('capture-audio-pane');
+    const tabBtnText = document.getElementById('tab-btn-text');
+    const tabBtnAudio = document.getElementById('tab-btn-audio');
+    if (tab === 'text') {
+        if (textPane) textPane.style.display = 'block';
+        if (audioPane) audioPane.style.display = 'none';
+        if (tabBtnText) { tabBtnText.className = 'btn btn-sm btn-primary'; }
+        if (tabBtnAudio) { tabBtnAudio.className = 'btn btn-sm btn-ghost'; }
+    } else {
+        if (textPane) textPane.style.display = 'none';
+        if (audioPane) audioPane.style.display = 'block';
+        if (tabBtnText) { tabBtnText.className = 'btn btn-sm btn-ghost'; }
+        if (tabBtnAudio) { tabBtnAudio.className = 'btn btn-sm btn-primary'; }
+    }
+}
+
+async function saveTextMemory() {
+    const input = document.getElementById('capture-text-input');
+    const text = input ? input.value.trim() : '';
+    if (!text) {
+        alert('Please enter some text for your memory.');
+        return;
+    }
+    const btn = document.getElementById('save-memory-btn');
+    if (btn) btn.disabled = true;
+    const status = document.getElementById('capture-status');
+    if (status) {
+        status.style.display = 'block';
+        status.style.color = 'var(--accent-primary, #6c63ff)';
+        status.textContent = 'Processing and storing memory...';
+    }
+    try {
+        const res = await authFetch(`${API_BASE}/pipeline/extract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        if (res && res.ok) {
+            closeRecordModal();
+            showShortcutNotification('Memory captured successfully!');
+            await loadDashboardData();
+            if (currentSection === 'memories') loadMemories();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            if (status) {
+                status.style.color = 'var(--accent-warm, #ef4444)';
+                status.textContent = err.detail || 'Failed to save memory.';
+            }
+        }
+    } catch (e) {
+        console.error('Save memory error:', e);
+        if (status) {
+            status.style.color = 'var(--accent-warm, #ef4444)';
+            status.textContent = 'Error saving memory.';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function uploadAudioMemory() {
+    const fileInput = document.getElementById('capture-audio-file');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Please select an audio file to upload.');
+        return;
+    }
+    const file = fileInput.files[0];
+    const btn = document.getElementById('upload-audio-btn');
+    if (btn) btn.disabled = true;
+    const status = document.getElementById('capture-status');
+    if (status) {
+        status.style.display = 'block';
+        status.style.color = 'var(--accent-primary, #6c63ff)';
+        status.textContent = 'Uploading and transcribing audio...';
+    }
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE}/record/upload`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${AUTH_TOKEN}`
+            },
+            body: formData
+        });
+        if (res && res.ok) {
+            closeRecordModal();
+            showShortcutNotification('Audio processed and memory saved!');
+            await loadDashboardData();
+            if (currentSection === 'memories') loadMemories();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            if (status) {
+                status.style.color = 'var(--accent-warm, #ef4444)';
+                status.textContent = err.detail || 'Failed to process audio.';
+            }
+        }
+    } catch (e) {
+        console.error('Audio upload error:', e);
+        if (status) {
+            status.style.color = 'var(--accent-warm, #ef4444)';
+            status.textContent = 'Error uploading audio.';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// Memory deletion
+async function deleteMemory(memoryId) {
+    if (!memoryId) return;
+    if (!confirm('Are you sure you want to permanently delete this memory?')) return;
+    try {
+        const res = await authFetch(`${API_BASE}/memory/${memoryId}`, { method: 'DELETE' });
+        if (res && res.ok) {
+            showShortcutNotification('Memory deleted');
+            const card = document.getElementById(`card-${memoryId}`);
+            if (card) card.remove();
+            loadStats();
+            loadTimelinePreview();
+        } else {
+            alert('Failed to delete memory.');
+        }
+    } catch (e) {
+        console.error('Delete error:', e);
+        alert('Error deleting memory.');
+    }
+}
+
+// Reminder acknowledgment
+async function acknowledgeReminder(alertId) {
+    if (!alertId) return;
+    try {
+        const res = await authFetch(`${API_BASE}/reminders/${alertId}/acknowledge`, { method: 'POST' });
+        if (res && res.ok) {
+            showShortcutNotification('Reminder dismissed');
+            loadRemindersPreview();
+            loadRemindersFull();
+            loadStats();
+        } else {
+            alert('Failed to acknowledge reminder.');
+        }
+    } catch (e) {
+        console.error('Acknowledge error:', e);
+    }
+}
+
+// Export memories
+async function exportMemories(format) {
+    try {
+        showShortcutNotification(`Exporting memories as ${format.toUpperCase()}...`);
+        const res = await authFetch(`${API_BASE}/export?format=${format}`);
+        if (!res || !res.ok) {
+            alert('Failed to export memories.');
+            return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `verath_memories_${new Date().toISOString().slice(0, 10)}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        showShortcutNotification('Export complete!');
+    } catch (e) {
+        console.error('Export error:', e);
+        alert('Error exporting memories.');
+    }
 }
 
 // Utility: escape HTML
@@ -659,3 +877,26 @@ function showShortcutNotification(message) {
     setTimeout(function() { notification.remove(); }, 300);
   }, 1500);
 }
+
+// Expose handlers on window so inline HTML onclick attributes function in module mode
+Object.assign(window, {
+  navigateTo,
+  loadMemories,
+  loadTimelineFull,
+  loadRemindersFull,
+  loadInsights,
+  submitQuery,
+  setQuery,
+  triggerRecord,
+  closeRecordModal,
+  setCaptureTab,
+  saveTextMemory,
+  uploadAudioMemory,
+  deleteMemory,
+  acknowledgeReminder,
+  exportMemories,
+  updateImportanceLabel,
+  loadDashboardData,
+  logout: window.logout || logout,
+});
+

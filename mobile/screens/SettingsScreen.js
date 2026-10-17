@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Dimensions, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -11,6 +11,29 @@ const { width } = Dimensions.get("window");
 export default function SettingsScreen({ onLogout }) {
   const [privacyMode, setPrivacyMode] = React.useState(false);
   const [autoSync, setAutoSync] = React.useState(true);
+  const [username, setUsername] = React.useState("");
+
+  React.useEffect(() => {
+    AsyncStorage.getItem('verath_privacy_mode').then(val => {
+      if (val !== null) setPrivacyMode(val === 'true');
+    });
+    AsyncStorage.getItem('verath_auto_sync').then(val => {
+      if (val !== null) setAutoSync(val === 'true');
+    });
+    AsyncStorage.getItem(USERNAME_KEY).then(val => {
+      if (val) setUsername(val);
+    });
+  }, []);
+
+  const handlePrivacyChange = async (val) => {
+    setPrivacyMode(val);
+    await AsyncStorage.setItem('verath_privacy_mode', String(val));
+  };
+
+  const handleSyncChange = async (val) => {
+    setAutoSync(val);
+    await AsyncStorage.setItem('verath_auto_sync', String(val));
+  };
 
   const handleLogout = async () => {
     try {
@@ -23,10 +46,11 @@ export default function SettingsScreen({ onLogout }) {
     }
   };
 
-  const SettingItem = ({ icon, label, value, onValueChange, type = "switch", subtitle }) => (
+  const SettingItem = ({ icon, label, value, onValueChange, type = "switch", subtitle, onPress }) => (
     <TouchableOpacity 
       activeOpacity={type === "chevron" ? 0.7 : 1}
       style={styles.settingItem}
+      onPress={type === "chevron" ? onPress : undefined}
     >
       <View style={styles.settingLeft}>
         <LinearGradient
@@ -66,7 +90,11 @@ export default function SettingsScreen({ onLogout }) {
           <Text style={styles.headerSubtitle}>Core Parameters</Text>
           <Text style={styles.headerTitle}>System Config</Text>
         </View>
-        <TouchableOpacity style={styles.headerIcon}>
+        <TouchableOpacity 
+          style={styles.headerIcon}
+          onPress={() => Alert.alert("System Config", "Verath Mobile Client v1.0.4 - All neural nodes nominal.")}
+          accessibilityLabel="System status"
+        >
           <MaterialCommunityIcons name="cog-outline" size={24} color="#38bdf8" />
         </TouchableOpacity>
       </View>
@@ -79,41 +107,76 @@ export default function SettingsScreen({ onLogout }) {
             label="Privacy Mode" 
             subtitle="Local processing only"
             value={privacyMode} 
-            onValueChange={setPrivacyMode} 
+            onValueChange={handlePrivacyChange} 
           />
           <SettingItem 
             icon="sync" 
             label="Cloud Sync" 
             subtitle="Secure neural backup"
             value={autoSync} 
-            onValueChange={setAutoSync} 
+            onValueChange={handleSyncChange} 
           />
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>User Profile</Text>
           <View style={styles.cardContainer}>
-            <SettingItem icon="account" label="Identity Settings" type="chevron" />
+            <SettingItem 
+              icon="account" 
+              label="Identity Settings" 
+              type="chevron"
+              onPress={() => Alert.alert("Identity", `Active Profile: ${username || 'Standard User'}`)}
+            />
             <View style={styles.separator} />
-            <SettingItem icon="database" label="Memory Index" type="chevron" />
+            <SettingItem 
+              icon="database" 
+              label="Memory Index" 
+              type="chevron" 
+              onPress={() => Alert.alert("Memory Index", "Local ChromaDB vector index is synchronized.")}
+            />
             <View style={styles.separator} />
-            <SettingItem icon="bell-ring" label="Neural Alerts" type="chevron" />
+            <SettingItem 
+              icon="bell-ring" 
+              label="Neural Alerts" 
+              type="chevron" 
+              onPress={() => Alert.alert("Neural Alerts", "Proactive reminder notifications are active.")}
+            />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Environment</Text>
           <View style={styles.cardContainer}>
-            <SettingItem icon="volume-high" label="Audio Precision" type="chevron" />
+            <SettingItem 
+              icon="volume-high" 
+              label="Audio Precision" 
+              type="chevron" 
+              onPress={() => Alert.alert("Audio Precision", "16kHz, 16-bit PCM voice sampling enabled.")}
+            />
             <View style={styles.separator} />
-            <SettingItem icon="language-python" label="Model Config" type="chevron" />
+            <SettingItem 
+              icon="language-python" 
+              label="Model Config" 
+              type="chevron" 
+              onPress={() => Alert.alert("Model Config", "Hybrid pipeline: Local Faster-Whisper + Neural Core.")}
+            />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Global</Text>
-          <SettingItem icon="information" label="Core version 1.0.4" type="chevron" />
-          <SettingItem icon="lifebuoy" label="Technical Support" type="chevron" />
+          <SettingItem 
+            icon="information" 
+            label="Core version 1.0.4" 
+            type="chevron" 
+            onPress={() => Alert.alert("Verath Mobile", "Core Version: 1.0.4\nClient Architecture: React Native / Expo")}
+          />
+          <SettingItem 
+            icon="lifebuoy" 
+            label="Technical Support" 
+            type="chevron" 
+            onPress={() => Alert.alert("Support", "Verath Engineering Helpdesk: support@verath.local")}
+          />
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>

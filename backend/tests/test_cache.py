@@ -148,3 +148,39 @@ def test_cached_async_function():
     asyncio.run(runner())
 
     assert calls["count"] == 1
+
+
+def test_user_specific_cache_invalidation_isolation():
+    invalidate_cache()
+
+    calls = {"alice": 0, "bob": 0}
+
+    @cached(ttl_seconds=60, key_prefix="summary")
+    def get_summary(user_id: str):
+        calls[user_id] += 1
+        return f"Summary for {user_id} version {calls[user_id]}"
+
+    # Initial calls populate cache
+    res_alice_1 = get_summary("alice")
+    res_bob_1 = get_summary("bob")
+    assert calls["alice"] == 1
+    assert calls["bob"] == 1
+    assert res_alice_1 == "Summary for alice version 1"
+    assert res_bob_1 == "Summary for bob version 1"
+
+    # Subsequent calls hit cache
+    assert get_summary("alice") == "Summary for alice version 1"
+    assert get_summary("bob") == "Summary for bob version 1"
+    assert calls["alice"] == 1
+    assert calls["bob"] == 1
+
+    # Invalidate ONLY alice's cache
+    invalidate_cache("alice")
+
+    # Bob should still hit cache, alice should recompute
+    assert get_summary("bob") == "Summary for bob version 1"
+    assert calls["bob"] == 1
+
+    res_alice_2 = get_summary("alice")
+    assert calls["alice"] == 2
+    assert res_alice_2 == "Summary for alice version 2"

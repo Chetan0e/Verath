@@ -35,6 +35,14 @@ async def verath_error():
 async def http_error():
     raise HTTPException(status_code=403, detail="Forbidden action")
 
+@app.get("/error/http_with_headers")
+async def http_error_with_headers():
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer", "Retry-After": "60"}
+    )
+
 @app.post("/error/validation")
 async def validation_error(item: DummyItem):
     return item
@@ -65,6 +73,15 @@ def test_http_exception_handler():
     assert data["error"] == "AuthorizationError"
     assert data["message"] == "Forbidden action"
     assert data["path"] == "/error/http"
+
+def test_http_exception_handler_preserves_headers():
+    response = client.get("/error/http_with_headers")
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.headers["retry-after"] == "60"
+    data = response.json()
+    assert data["error"] == "AuthenticationError"
+    assert data["message"] == "Authentication required"
 
 def test_validation_exception_handler():
     response = client.post("/error/validation", json={})

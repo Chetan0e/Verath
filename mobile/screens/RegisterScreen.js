@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TOKEN_KEY, REFRESH_KEY, USERNAME_KEY } from "../services/authKeys";
 import { API_BASE_URL } from "../config";
 
 const { width } = Dimensions.get("window");
@@ -49,9 +50,14 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }) {
             username,
             password,
           });
-          const token = loginResponse.data?.access_token;
+          const loginData = loginResponse.data;
+          const token = loginData?.access_token;
           if (token) {
-            await AsyncStorage.setItem("verath_token", token);
+            await AsyncStorage.setItem(TOKEN_KEY, token);
+            if (loginData.refresh_token) {
+              await AsyncStorage.setItem(REFRESH_KEY, loginData.refresh_token);
+            }
+            await AsyncStorage.setItem(USERNAME_KEY, loginData.username || username);
             onRegisterSuccess();
           } else {
             Alert.alert("Account Created", "Please log in to continue.");

@@ -122,19 +122,47 @@ const AuthLanding = () => {
     setSuccess('');
     const endpoint = isLogin ? '/auth/login' : '/auth/signup';
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem('verath_token', data.access_token);
-        localStorage.setItem('verath_username', username);
-        if (!isLogin) setSuccess('Account created! Redirecting...');
-        setTimeout(() => { window.location.href = '/legacy/dashboard.html'; }, 500);
+      if (isLogin) {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          localStorage.setItem('verath_token', data.access_token);
+          localStorage.setItem('verath_username', username);
+          setTimeout(() => { window.location.href = '/legacy/dashboard.html'; }, 300);
+        } else {
+          setError(data.detail || 'Invalid credentials');
+        }
       } else {
-        setError(data.detail || (isLogin ? 'Invalid credentials' : 'Registration failed'));
+        const signupRes = await fetch(`${API_BASE}/auth/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const signupData = await signupRes.json();
+        if (signupRes.ok) {
+          // Automatically log in post-registration to obtain tokens
+          const loginRes = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const loginData = await loginRes.json();
+          if (loginRes.ok && loginData.access_token) {
+            localStorage.setItem('verath_token', loginData.access_token);
+            localStorage.setItem('verath_username', username);
+            setSuccess('Account created! Entering your vault...');
+            setTimeout(() => { window.location.href = '/legacy/dashboard.html'; }, 500);
+          } else {
+            setSuccess('Account created! Please sign in with your credentials.');
+            setIsLogin(true);
+          }
+        } else {
+          setError(signupData.detail || 'Registration failed');
+        }
       }
     } catch (err) {
       console.error('Auth error:', err);

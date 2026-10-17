@@ -200,6 +200,11 @@
             </select>
             <input type="range" id="importance-filter" min="0" max="100" value="0" oninput="updateImportanceLabel(this)" onchange="loadMemories()" aria-label="Minimum importance filter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <span id="importance-label" class="filter-label">Min importance: 0%</span>
+            <div class="export-actions" style="display:flex;gap:6px;margin-left:auto;">
+              <button class="btn btn-ghost btn-sm" onclick="exportMemories('csv')" title="Export as CSV"><i class="fa-solid fa-file-csv"></i> CSV</button>
+              <button class="btn btn-ghost btn-sm" onclick="exportMemories('json')" title="Export as JSON"><i class="fa-solid fa-file-code"></i> JSON</button>
+              <button class="btn btn-ghost btn-sm" onclick="exportMemories('pdf')" title="Export as PDF"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+            </div>
           </div>
         </div>
 
@@ -291,6 +296,36 @@
           </div>
         </div>
       </section>
+
+      <!-- Memory Capture Modal -->
+      <div id="record-modal" class="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:2000;align-items:center;justify-content:center;">
+        <div class="modal-card card" style="max-width:520px;width:92%;background:var(--bg-surface,#fff);border-radius:16px;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;font-size:1.25rem;"><i class="fa-solid fa-microphone-lines" style="color:var(--accent-primary,#6c63ff);margin-right:8px;"></i>Capture Memory</h3>
+            <button class="btn-ghost btn-sm" onclick="closeRecordModal()" style="border:none;background:none;cursor:pointer;font-size:1.1rem;"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="capture-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+            <button class="btn btn-sm btn-primary" id="tab-btn-text" onclick="setCaptureTab('text')"><i class="fa-solid fa-pen"></i> Text Note</button>
+            <button class="btn btn-sm btn-ghost" id="tab-btn-audio" onclick="setCaptureTab('audio')"><i class="fa-solid fa-file-audio"></i> Audio File</button>
+          </div>
+          <div id="capture-text-pane">
+            <textarea id="capture-text-input" class="input" rows="4" placeholder="Speak your mind or type notes (e.g., 'Met with Alex about Q3 budget on Friday')..." style="width:100%;resize:vertical;"></textarea>
+            <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px;">
+              <button class="btn btn-ghost" onclick="closeRecordModal()">Cancel</button>
+              <button class="btn btn-primary" id="save-memory-btn" onclick="saveTextMemory()"><i class="fa-solid fa-check"></i> Save Memory</button>
+            </div>
+          </div>
+          <div id="capture-audio-pane" style="display:none;">
+            <input type="file" id="capture-audio-file" accept="audio/*" class="input" style="width:100%;padding:10px;">
+            <p style="font-size:0.8rem;color:#6b7280;margin-top:6px;">Supported formats: WAV, MP3, M4A</p>
+            <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px;">
+              <button class="btn btn-ghost" onclick="closeRecordModal()">Cancel</button>
+              <button class="btn btn-primary" id="upload-audio-btn" onclick="uploadAudioMemory()"><i class="fa-solid fa-cloud-arrow-up"></i> Upload & Process</button>
+            </div>
+          </div>
+          <div id="capture-status" style="margin-top:12px;font-size:0.875rem;display:none;"></div>
+        </div>
+      </div>
     </main>
   </div>
 

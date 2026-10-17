@@ -170,7 +170,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.greeting}>Good {greeting},</Text>
             <Text style={styles.username}>{username || 'User'}</Text>
           </View>
-          <TouchableOpacity style={styles.avatar}>
+          <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Settings')}>
             <Text style={styles.avatarText}>{(username || 'U').charAt(0).toUpperCase()}</Text>
           </TouchableOpacity>
         </View>

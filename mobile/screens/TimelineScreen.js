@@ -12,7 +12,18 @@ export default function TimelineScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [error, setError] = useState(null);
+  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'critical' | 'insight'
   const soundRef = useRef(null);
+
+  const toggleFilter = () => {
+    setFilterMode(prev => (prev === 'all' ? 'critical' : prev === 'critical' ? 'insight' : 'all'));
+  };
+
+  const displayedEvents = events.filter(e => {
+    if (filterMode === 'critical') return (e.importance || 0) > 0.7;
+    if (filterMode === 'insight') return (e.importance || 0) <= 0.7;
+    return true;
+  });
 
   const fetchTimeline = async () => {
     setLoading(true);
@@ -122,10 +133,16 @@ export default function TimelineScreen() {
       
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerSubtitle}>Activity Log</Text>
+          <Text style={styles.headerSubtitle}>
+            Activity Log{filterMode !== 'all' ? ` • ${filterMode.toUpperCase()}` : ''}
+          </Text>
           <Text style={styles.headerTitle}>Neural Timeline</Text>
         </View>
-        <TouchableOpacity style={styles.filterButton}>
+        <TouchableOpacity
+          style={[styles.filterButton, filterMode !== 'all' && { borderColor: '#38bdf8', borderWidth: 1 }]}
+          onPress={toggleFilter}
+          accessibilityLabel={`Filter memories: currently ${filterMode}`}
+        >
           <MaterialCommunityIcons name="filter-variant" size={24} color="#38bdf8" />
         </TouchableOpacity>
       </View>
@@ -158,8 +175,17 @@ export default function TimelineScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
           }
         >
-          {events.map((event, index) => (
-            <View key={event.id || index} style={styles.timelineItem}>
+          {displayedEvents.length === 0 ? (
+            <View style={[styles.centerContainer, { paddingVertical: 40 }]}>
+              <MaterialCommunityIcons name="filter-off" size={48} color="#64748b" />
+              <Text style={styles.emptyText}>No memories match the '{filterMode}' filter.</Text>
+              <TouchableOpacity style={styles.refreshButton} onPress={() => setFilterMode('all')}>
+                <Text style={styles.refreshButtonText}>Reset Filter</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            displayedEvents.map((event, index) => (
+              <View key={event.id || index} style={styles.timelineItem}>
               <View style={styles.timelineLeft}>
                 <View style={[
                   styles.dot, 
