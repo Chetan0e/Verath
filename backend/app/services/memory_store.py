@@ -30,12 +30,14 @@ def _get_collection(user_id: str):
 
 
 # ── MongoDB client ────────────────────────────────────────────────────────────
-_mongo_client = AsyncIOMotorClient(settings.mongo_uri)
-_db = _mongo_client[settings.database_name]
-
-
 def _memories_collection():
-    return _db["memories"]
+    from app.services.database import get_db
+    db = get_db()
+    if db is not None:
+        return db["memories"]
+    from motor.motor_asyncio import AsyncIOMotorClient
+    client = AsyncIOMotorClient(settings.mongo_uri)
+    return client[settings.database_name]["memories"]
 
 
 # ── Write ─────────────────────────────────────────────────────────────────────

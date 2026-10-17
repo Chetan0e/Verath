@@ -56,23 +56,6 @@ def auth_headers(access_token):
     return {"Authorization": f"Bearer {access_token}"}
 
 
-# ── MongoDB mock ──────────────────────────────────────────────────────────────
-@pytest.fixture
-def mock_db(monkeypatch):
-    """
-    Patches all MongoDB collections used in services so tests never
-    touch a real database.
-    """
-    mock_col = MagicMock()
-    mock_col.find_one = AsyncMock(return_value=None)
-    mock_col.insert_one = AsyncMock(return_value=MagicMock(inserted_id="mock_id"))
-    mock_col.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-    mock_col.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
-    mock_col.find = MagicMock(return_value=_async_cursor([]))
-    mock_col.aggregate = MagicMock(return_value=_async_cursor([]))
-    return mock_col
-
-
 class _async_cursor:
     """Minimal async cursor that yields from a list."""
     def __init__(self, items):
@@ -89,6 +72,152 @@ class _async_cursor:
 
     def sort(self, *args, **kwargs):
         return self
+
+    def limit(self, *args, **kwargs):
+        return self
+
+
+class _MockCollection:
+    def __init__(self):
+        self._docs = {}
+        self.insert_one = AsyncMock(side_effect=self._insert_one)
+        self.find_one = AsyncMock(side_effect=self._find_one)
+        self.update_one = AsyncMock(side_effect=self._update_one)
+        self.delete_one = AsyncMock(side_effect=self._delete_one)
+        self.count_documents = AsyncMock(side_effect=self._count_documents)
+        self.find = MagicMock(side_effect=self._find)
+        self.aggregate = MagicMock(return_value=_async_cursor([]))
+        self.create_index = AsyncMock(return_value="idx")
+        self.distinct = AsyncMock(side_effect=self._distinct)
+
+    def _get_key(self, query):
+        if not isinstance(query, dict):
+            return str(query)
+        if "username" in query:
+            return f"user:{query['username']}"
+        if "user_id" in query:
+            return f"user:{query['user_id']}"
+        if "_id" in query:
+            return f"id:{query['_id']}"
+        if "jti" in query:
+            return f"jti:{query['jti']}"
+        return str(sorted(query.items()))
+
+    async def _insert_one(self, doc):
+        doc = dict(doc)
+        if "_id" not in doc:
+            doc["_id"] = "mock_id_" + str(len(self._docs))
+        key = self._get_key(doc)
+        self._docs[key] = doc
+        return MagicMock(inserted_id=doc["_id"])
+
+    async def _find_one(self, query=None, projection=None):
+        if not query:
+            return next(iter(self._docs.values()), None)
+        key = self._get_key(query)
+        doc = self._docs.get(key)
+        if doc is None:
+            for d in self._docs.values():
+                if all(d.get(k) == v for k, v in query.items() if not k.startswith("$")):
+                    doc = d
+                    break
+        if doc and projection:
+            return {k: doc[k] for k in projection if k in doc}
+        return doc
+
+    async def _update_one(self, query, update, upsert=False):
+        key = self._get_key(query)
+        doc = self._docs.get(key)
+        if doc is None:
+            if upsert:
+                doc = {k: v for k, v in query.items() if not k.startswith("$")}
+                self._docs[key] = doc
+            else:
+                return MagicMock(modified_count=0)
+        
+        if "$set" in update:
+            doc.update(update["$set"])
+        return MagicMock(modified_count=1)
+
+    async def _delete_one(self, query):
+        key = self._get_key(query)
+        existed = self._docs.pop(key, None) is not None
+        return MagicMock(deleted_count=1 if existed else 0)
+
+    async def _count_documents(self, query=None):
+        if not query:
+            return len(self._docs)
+        count = sum(
+            1 for d in self._docs.values()
+            if all(d.get(k) == v for k, v in query.items() if not k.startswith("$"))
+        )
+        return count
+
+    def _find(self, query=None, *args, **kwargs):
+        if not query:
+            return _async_cursor(list(self._docs.values()))
+        matches = [
+            d for d in self._docs.values()
+            if all(d.get(k) == v for k, v in query.items() if not k.startswith("$"))
+        ]
+        return _async_cursor(matches)
+
+    async def _distinct(self, field, query=None):
+        docs = self._docs.values()
+        if query:
+            docs = [d for d in docs if all(d.get(k) == v for k, v in query.items() if not k.startswith("$"))]
+        vals = {d[field] for d in docs if field in d}
+        return list(vals)
+
+
+class _MockDB:
+    _shared_cols = {}
+
+    def __init__(self):
+        self._cols = _MockDB._shared_cols
+
+    def __getitem__(self, name):
+        if name not in self._cols:
+            self._cols[name] = _MockCollection()
+        return self._cols[name]
+
+    def __getattr__(self, name):
+        return self[name]
+
+    async def command(self, *args, **kwargs):
+        return {"ok": 1}
+
+
+@pytest.fixture(autouse=True)
+def default_db_mock(monkeypatch):
+    mock_db_instance = _MockDB()
+    from app.services import database
+    monkeypatch.setattr(database, "get_db", lambda: mock_db_instance)
+    monkeypatch.setattr(database.db_instance, "db", mock_db_instance)
+    return mock_db_instance
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    from app.routes.auth import limiter
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+    yield
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def mock_db(default_db_mock):
+    """
+    Patches all MongoDB collections used in services so tests never
+    touch a real database.
+    """
+    return default_db_mock["memories"]
 
 
 # ── ChromaDB mock ─────────────────────────────────────────────────────────────

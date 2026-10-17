@@ -4,12 +4,14 @@ from fastapi.exceptions import RequestValidationError
 from app.core.exceptions import VerathException, http_exception_from_error
 from app.core.logging_config import logger
 
-def build_error_response(request: Request, status_code: int, error_type: str, message: str, details: dict = None) -> JSONResponse:
+def build_error_response(request: Request, status_code: int, error_type: str, message: str, details: dict = None, headers: dict = None) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
+        headers=headers,
         content={
             "error": error_type,
             "message": message,
+            "detail": message,
             "path": request.url.path,
             "details": details or {}
         }
@@ -63,7 +65,8 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         status_code=exc.status_code,
         error_type=error_type,
         message=message,
-        details=details
+        details=details,
+        headers=exc.headers
     )
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:

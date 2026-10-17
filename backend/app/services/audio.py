@@ -5,7 +5,7 @@ from typing import Optional
 
 try:
     import sounddevice as sd
-except OSError:
+except (OSError, ImportError):
     sd = None
 import numpy as np
 from scipy.io.wavfile import write

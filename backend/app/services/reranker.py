@@ -2,17 +2,22 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 
-from sentence_transformers import CrossEncoder
+try:
+    from sentence_transformers import CrossEncoder
+except (ImportError, OSError):
+    CrossEncoder = None
 
 logger = logging.getLogger(__name__)
 
 _MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-_cross_encoder: CrossEncoder = None
+_cross_encoder: Any = None
 
 
-def _get_cross_encoder() -> CrossEncoder:
+def _get_cross_encoder() -> Any:
     """Lazy-load the cross-encoder model (downloads once, cached locally)."""
     global _cross_encoder
+    if CrossEncoder is None:
+        raise RuntimeError("sentence-transformers is not available")
     if _cross_encoder is None:
         logger.info(f"Loading cross-encoder model: {_MODEL_NAME}")
         _cross_encoder = CrossEncoder(_MODEL_NAME, max_length=512)

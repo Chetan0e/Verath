@@ -117,7 +117,7 @@ class TestAutoPromoteCounter:
         mgr = MemoryLifecycleManager()
 
         import logging
-        with caplog.at_level(logging.WARNING, logger="app.db.memory_lifecycle"):
+        with caplog.at_level(logging.INFO, logger="app.db.memory_lifecycle"):
             await mgr.auto_promote_important_memories("u1")
 
         assert "promoted=2" in caplog.text

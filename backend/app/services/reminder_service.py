@@ -141,9 +141,18 @@ async def get_upcoming_reminders(
 async def acknowledge_reminder(alert_id: str, user_id: str) -> bool:
     """Mark a reminder as acknowledged so it won't re-appear."""
     from bson import ObjectId
+    from bson.errors import InvalidId
     db = get_db()
+    if db is None:
+        return False
+
+    try:
+        query_id = ObjectId(alert_id)
+    except (InvalidId, TypeError):
+        query_id = alert_id
+
     result = await db["alerts"].update_one(
-        {"_id": ObjectId(alert_id), "user_id": user_id},
+        {"_id": query_id, "user_id": user_id},
         {"$set": {"acknowledged": True}}
     )
-    return result.modified_count > 0
+    return getattr(result, "modified_count", 0) > 0

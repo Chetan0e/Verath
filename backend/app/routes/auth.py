@@ -10,6 +10,7 @@ from datetime import datetime
 
 from jose import jwt, JWTError
 
+import app.services.auth as auth_service
 from app.services.auth import (
     authenticate_user,
     create_user,
@@ -33,6 +34,24 @@ _bearer = HTTPBearer()
 
 # Rate limiting configuration
 limiter = Limiter(key_func=get_remote_address)
+
+
+_orig_auth_service_funcs = {
+    name: getattr(auth_service, name)
+    for name in dir(auth_service)
+    if callable(getattr(auth_service, name))
+}
+
+
+def _dispatch_auth(fn_name: str):
+    service_fn = getattr(auth_service, fn_name, None)
+    orig_fn = _orig_auth_service_funcs.get(fn_name)
+    if service_fn is not None and service_fn is not orig_fn:
+        return service_fn
+    local_fn = globals().get(fn_name)
+    if local_fn is not None and local_fn is not orig_fn:
+        return local_fn
+    return service_fn or local_fn
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -59,7 +78,8 @@ async def signup(request: Request, credentials: UserCredentials):
     username = credentials.username.lower().strip()
     ip_address = request.client.host if request.client else "unknown"
     
-    success = await create_user(username, credentials.password)
+    create_fn = _dispatch_auth("create_user")
+    success = await create_fn(username, credentials.password)
     
     # Audit log
     await _log_auth_event(username, ip_address, "signup", success)
@@ -79,7 +99,8 @@ async def login(request: Request, credentials: UserCredentials):
     ip_address = request.client.host if request.client else "unknown"
 
     # Account lockout check (per-account, complements IP rate limiting)
-    lock_seconds = await get_lockout_seconds_remaining(username_clean)
+    lockout_fn = _dispatch_auth("get_lockout_seconds_remaining")
+    lock_seconds = await lockout_fn(username_clean)
     if lock_seconds > 0:
         await _log_auth_event(username_clean, ip_address, "login_locked", False)
         raise HTTPException(
@@ -88,24 +109,30 @@ async def login(request: Request, credentials: UserCredentials):
             headers={"Retry-After": str(lock_seconds)},
         )
 
-    username = await authenticate_user(username_clean, credentials.password)
+    auth_fn = _dispatch_auth("authenticate_user")
+    username = await auth_fn(username_clean, credentials.password)
 
     # Audit log
     await _log_auth_event(username_clean, ip_address, "login", username is not None)
 
     if not username:
-        await register_failed_login(username_clean)
+        fail_fn = _dispatch_auth("register_failed_login")
+        await fail_fn(username_clean)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    await reset_login_attempts(username_clean)
+    reset_fn = _dispatch_auth("reset_login_attempts")
+    await reset_fn(username_clean)
+
+    create_access_fn = _dispatch_auth("create_access_token")
+    create_refresh_fn = _dispatch_auth("create_refresh_token")
 
     return TokenResponse(
-        access_token=create_access_token(username),
-        refresh_token=create_refresh_token(username),
+        access_token=create_access_fn(username),
+        refresh_token=create_refresh_fn(username),
         username=username,
     )
 

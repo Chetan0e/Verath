@@ -1,5 +1,6 @@
 import logging
 import re
+import inspect
 import dateparser
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
@@ -412,4 +413,16 @@ async def run_extraction_pipeline(
     if input_text is None:
         raise ValueError("No input text provided")
 
-    return await extraction_pipeline.extract(input_text)
+    result = await extraction_pipeline.extract(input_text)
+
+    if user_id:
+        from app.services.memory_store import store_memory
+        res = store_memory(
+            user_id=user_id,
+            text=result.get("cleaned_text") or input_text,
+            metadata=result,
+        )
+        if inspect.isawaitable(res):
+            await res
+
+    return result

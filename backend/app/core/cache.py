@@ -12,6 +12,7 @@ class SimpleCache:
     def __init__(self):
         self._cache = {}
         self._timestamps = {}
+        self._raw_keys = {}
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache if exists and not expired."""
@@ -24,13 +25,16 @@ class SimpleCache:
                 # Expired
                 del self._cache[key]
                 del self._timestamps[key]
+                self._raw_keys.pop(key, None)
                 return None
         
         return self._cache[key]
     
-    def set(self, key: str, value: Any, ttl_seconds: int = None):
+    def set(self, key: str, value: Any, ttl_seconds: int = None, raw_key: Optional[str] = None):
         """Set value in cache with optional TTL."""
         self._cache[key] = value
+        if raw_key:
+            self._raw_keys[key] = raw_key
         if ttl_seconds:
             self._timestamps[key] = time.time() + ttl_seconds
     
@@ -38,15 +42,20 @@ class SimpleCache:
         """Delete a specific key from cache."""
         self._cache.pop(key, None)
         self._timestamps.pop(key, None)
+        self._raw_keys.pop(key, None)
     
     def clear(self):
         """Clear all cache entries."""
         self._cache.clear()
         self._timestamps.clear()
+        self._raw_keys.clear()
     
     def invalidate_pattern(self, pattern: str):
-        """Delete all keys matching a pattern."""
-        keys_to_delete = [k for k in self._cache.keys() if pattern in k]
+        """Delete all keys matching a pattern in either the key hash or raw key string."""
+        keys_to_delete = [
+            k for k in list(self._cache.keys())
+            if pattern in k or (k in self._raw_keys and pattern in self._raw_keys[k])
+        ]
         for key in keys_to_delete:
             self.delete(key)
 
@@ -90,18 +99,19 @@ def cached(ttl_seconds: int = 300, key_prefix: str = "", key_func: Optional[Call
     """
     def decorator(func: Callable) -> Callable:
 
-        def _build_key_hash(args, kwargs) -> str:
+        def _build_keys(args, kwargs) -> tuple[str, str]:
             if key_func is not None:
                 key_suffix = key_func(func, args, kwargs)
             else:
                 key_suffix = _default_key_func(func, args, kwargs)
 
-            key = ":".join([key_prefix, func.__name__, key_suffix])
-            return hashlib.md5(key.encode()).hexdigest()
+            raw_key = ":".join([key_prefix, func.__name__, key_suffix])
+            key_hash = hashlib.md5(raw_key.encode()).hexdigest()
+            return key_hash, raw_key
 
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            key_hash = _build_key_hash(args, kwargs)
+            key_hash, raw_key = _build_keys(args, kwargs)
 
             # Check cache
             cached_value = _cache.get(key_hash)
@@ -112,21 +122,21 @@ def cached(ttl_seconds: int = 300, key_prefix: str = "", key_func: Optional[Call
             result = await func(*args, **kwargs)
 
             # Store in cache
-            _cache.set(key_hash, result, ttl_seconds)
+            _cache.set(key_hash, result, ttl_seconds, raw_key=raw_key)
 
             return result
 
         # Also support sync functions
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            key_hash = _build_key_hash(args, kwargs)
+            key_hash, raw_key = _build_keys(args, kwargs)
 
             cached_value = _cache.get(key_hash)
             if cached_value is not None:
                 return cached_value
 
             result = func(*args, **kwargs)
-            _cache.set(key_hash, result, ttl_seconds)
+            _cache.set(key_hash, result, ttl_seconds, raw_key=raw_key)
 
             return result
 

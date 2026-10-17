@@ -228,9 +228,12 @@ async def status():
         "services": {}
     }
 
+    import inspect
     # Check MongoDB
     try:
         db = get_db()
+        if inspect.iscoroutine(db):
+            db = await db
         if db:
             await db.command("ping")
             col = _memories_collection()
@@ -264,9 +267,11 @@ async def status():
     else:
         health_status["services"]["groq"] = "not_configured"
 
-    # Overall: core storage must be healthy; cloud LLM is optional
+    # Overall: core storage must be healthy; configured LLM must not be unhealthy
     core_services = ("mongodb", "chromadb")
-    if all(health_status["services"].get(s) == "healthy" for s in core_services):
+    core_healthy = all(health_status["services"].get(s) == "healthy" for s in core_services)
+    groq_healthy = health_status["services"].get("groq") in ("healthy", "not_configured")
+    if core_healthy and groq_healthy:
         health_status["overall"] = "healthy"
     else:
         health_status["overall"] = "degraded"

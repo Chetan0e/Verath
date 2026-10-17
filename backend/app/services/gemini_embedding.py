@@ -5,13 +5,24 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Initialize Gemini client
-client = genai.Client(api_key=settings.gemini_api_key)
+# Initialize Gemini client lazily
+_client = None
+client = None
+
+
+def get_client():
+    global _client
+    if _client is None:
+        if not settings.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY is not configured")
+        _client = genai.Client(api_key=settings.gemini_api_key)
+    return _client
 
 def get_embedding(text: str) -> list[float]:
     """Get embedding from Gemini."""
     try:
-        response = client.models.embed_content(
+        active_client = client or get_client()
+        response = active_client.models.embed_content(
             model="gemini-embedding-001",
             contents=text,
         )
@@ -28,7 +39,8 @@ async def get_embedding_async(text: str) -> list[float]:
 async def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
     """Batch generation of embeddings"""
     try:
-        response = client.models.embed_content(
+        active_client = client or get_client()
+        response = active_client.models.embed_content(
             model="gemini-embedding-001",
             contents=texts,
         )

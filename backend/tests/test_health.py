@@ -17,7 +17,7 @@ class TestHealth:
         mock_col.count_documents = AsyncMock(return_value=100)
         
         # Mock get_db
-        async def mock_get_db():
+        def mock_get_db():
             return mock_db
         
         # Mock _memories_collection
@@ -32,6 +32,7 @@ class TestHealth:
         mock_groq_client = MagicMock()
         mock_groq_client.models.list = AsyncMock(return_value=["model1"])
         
+        monkeypatch.setattr("app.config.settings.groq_api_key", "test-groq-key")
         monkeypatch.setattr("app.services.database.get_db", mock_get_db)
         monkeypatch.setattr("app.services.memory_store._memories_collection", mock_memories_collection)
         monkeypatch.setattr("chromadb.PersistentClient", lambda path: mock_chroma_client)
@@ -54,7 +55,7 @@ class TestHealth:
         mock_col = MagicMock()
         mock_col.count_documents = AsyncMock(return_value=100)
         
-        async def mock_get_db():
+        def mock_get_db():
             return mock_db
         
         def mock_memories_collection():
@@ -68,6 +69,7 @@ class TestHealth:
         mock_groq_client = MagicMock()
         mock_groq_client.models.list = AsyncMock(side_effect=Exception("Connection refused"))
         
+        monkeypatch.setattr("app.config.settings.groq_api_key", "test-groq-key")
         monkeypatch.setattr("app.services.database.get_db", mock_get_db)
         monkeypatch.setattr("app.services.memory_store._memories_collection", mock_memories_collection)
         monkeypatch.setattr("chromadb.PersistentClient", lambda path: mock_chroma_client)
@@ -89,7 +91,7 @@ class TestHealth:
         mock_col = MagicMock()
         mock_col.count_documents = AsyncMock(return_value=100)
         
-        async def mock_get_db():
+        def mock_get_db():
             return mock_db
         
         def mock_memories_collection():
@@ -103,6 +105,7 @@ class TestHealth:
         mock_groq_client = MagicMock()
         mock_groq_client.models.list = AsyncMock(return_value=["model1"])
         
+        monkeypatch.setattr("app.config.settings.groq_api_key", "test-groq-key")
         monkeypatch.setattr("app.services.database.get_db", mock_get_db)
         monkeypatch.setattr("app.services.memory_store._memories_collection", mock_memories_collection)
         monkeypatch.setattr("chromadb.PersistentClient", lambda path: mock_chroma_client)

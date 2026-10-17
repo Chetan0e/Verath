@@ -124,14 +124,15 @@ async def export_memories(
             writer.writerow(["id", "text", "intent", "importance", "speaker", "timestamp", "summary"])
 
             for m in memories:
+                meta = m.get("metadata") or {}
                 writer.writerow([
                     m.get("_id", ""),
                     m.get("text", ""),
-                    m.get("metadata", {}).get("intent", ""),
-                    m.get("metadata", {}).get("importance", 0.0),
-                    m.get("metadata", {}).get("speaker", "unknown"),
+                    meta.get("intent", ""),
+                    meta.get("importance", 0.0),
+                    meta.get("speaker", "unknown"),
                     m.get("created_at", ""),
-                    m.get("metadata", {}).get("summary", "")
+                    meta.get("summary", "")
                 ])
 
             output.seek(0)
@@ -266,7 +267,7 @@ async def export_memories(
                 elements.append(Paragraph(f"&#128197; {date_key}", date_header_style))
 
                 for m in date_groups[date_key]:
-                    meta = m.get("metadata", {})
+                    meta = m.get("metadata") or {}
                     text = m.get("text", "")
                     intent = meta.get("intent", "general")
                     importance = meta.get("importance", 0.0)
@@ -301,7 +302,6 @@ async def export_memories(
         else:
             # Stream JSON response to avoid holding entire dataset in memory
             import json
-            from fastapi.responses import StreamingResponse
 
             exported_at = datetime.utcnow().isoformat()
             count = len(memories)
@@ -322,11 +322,7 @@ async def export_memories(
                     "Content-Disposition": f"attachment; filename=Verath_export_{user_id}.json"
                 }
             )
-            
-    except Exception as e:
-        logger.error(f"Error exporting memories: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to export memories")
-
+        
     except Exception as e:
         logger.error(f"Error exporting memories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to export memories")

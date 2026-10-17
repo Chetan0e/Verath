@@ -145,6 +145,8 @@ def validate_text(text: str):
     """
     Backward-compatible validation helper expected by legacy tests.
     """
+    if not data_validator._is_valid_length(text):
+        return False, "invalid_length"
 
     sanitized = data_validator.sanitize_input(text)
 

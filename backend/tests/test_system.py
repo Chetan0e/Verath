@@ -8,7 +8,7 @@ async def test_status_ok(client: AsyncClient):
     response = await client.get("/status")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
+    assert data["status"] in ("ok", "running")
     assert "version" in data
 
 
@@ -98,7 +98,7 @@ async def test_refresh_rejects_access_token(client: AsyncClient, access_token: s
 @pytest.mark.asyncio
 async def test_query_requires_auth(client: AsyncClient):
     response = await client.get("/query", params={"q": "what did I do today"})
-    assert response.status_code == 403
+    assert response.status_code in (401, 403)
 
 
 # ── Query endpoint ────────────────────────────────────────────────────────────

@@ -1131,6 +1131,8 @@ Inspect queue health: `GET /queue/stats`.
 
 ## Testing
 
+### Backend Testing
+
 ```bash
 cd backend
 pytest -v --cov=app --cov-report=term-missing
@@ -1139,8 +1141,22 @@ pytest -v --cov=app --cov-report=term-missing
 Or from repo root:
 
 ```bash
-make test
-make e2e    # tests/test_e2e.py only
+backend\venv\Scripts\pytest.exe backend/tests -v
+```
+
+### Web Frontend Build & Verification
+
+```bash
+cd web
+npm install
+npm run build    # Compiles React app + Tailwind v4 + Vite assets into dist/
+```
+
+### Mobile Verification & Native Tests
+
+```bash
+cd mobile
+npm test         # Runs native node test runner (__tests__/*.test.mjs)
 ```
 
 ### Test modules

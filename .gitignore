@@ -79,6 +79,8 @@ temp_*.wav
 *.m4a
 *.log
 backend/data/
+data/chroma_db/
+data/voice_profiles/
 data/vector_db/*
 !data/vector_db/.gitkeep
 data/*.pkl

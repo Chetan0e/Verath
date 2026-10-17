@@ -1,5 +1,6 @@
 import logging
 import uuid
+import inspect
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
@@ -135,6 +136,16 @@ def decode_access_token(token: str) -> Optional[Dict]:
 async def create_user(username: str, password: str) -> bool:
     username = username.lower().strip()
     db = get_db()
+    if db is None:
+        return False
+
+    find_one_fn = getattr(db["users"], "find_one", None)
+    if callable(find_one_fn):
+        res = find_one_fn({"username": username})
+        if inspect.isawaitable(res):
+            existing = await res
+            if existing:
+                return False
 
     try:
         await db["users"].insert_one({

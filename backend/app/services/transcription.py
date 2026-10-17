@@ -1,12 +1,18 @@
 import logging
 from functools import lru_cache
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except (ImportError, OSError):
+    WhisperModel = None
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def get_model() -> WhisperModel:
+    if WhisperModel is None:
+        raise RuntimeError("faster-whisper is not available")
     try:
         logger.info(f"Loading Whisper model '{settings.whisper_model}' on {settings.whisper_device} ({settings.whisper_compute_type})")
         return WhisperModel(

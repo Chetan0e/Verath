@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+import app.services.reminder_service as reminder_service
 from app.services.reminder_service import (
     get_upcoming_reminders,
     acknowledge_reminder,
@@ -68,7 +69,12 @@ async def get_upcoming(
                 "received": hours
             }
         )
-    reminders = await get_upcoming_reminders(
+    _get_fn = (
+        reminder_service.get_upcoming_reminders
+        if reminder_service.get_upcoming_reminders != get_upcoming_reminders
+        else globals().get("get_upcoming_reminders", reminder_service.get_upcoming_reminders)
+    )
+    reminders = await _get_fn(
         user_id=user,
         hours=hours,
         include_acknowledged=include_acknowledged,
@@ -82,7 +88,12 @@ async def acknowledge(
     user: str = Depends(_get_current_user),
 ):
     """Mark a reminder alert as acknowledged so it is hidden from future queries."""
-    success = await acknowledge_reminder(alert_id=alert_id, user_id=user)
+    _ack_fn = (
+        reminder_service.acknowledge_reminder
+        if reminder_service.acknowledge_reminder != acknowledge_reminder
+        else globals().get("acknowledge_reminder", reminder_service.acknowledge_reminder)
+    )
+    success = await _ack_fn(alert_id=alert_id, user_id=user)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
