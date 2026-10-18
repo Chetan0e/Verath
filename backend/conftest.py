@@ -17,11 +17,9 @@ from app.services.auth import create_access_token, create_refresh_token
 
 
 # ── Event loop ────────────────────────────────────────────────────────────────
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# In modern pytest-asyncio with asyncio_mode=auto, defining a session-scoped
+# event_loop fixture breaks loop isolation across test modules and causes
+# 'coroutine was never awaited' warnings. pytest-asyncio manages loops automatically.
 
 
 # ── HTTP client ───────────────────────────────────────────────────────────────

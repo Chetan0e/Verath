@@ -65,6 +65,7 @@ async def record_session(
         logger.error(f"Error recording session: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to record session")
 
+@router.post("/pipeline/extract", include_in_schema=False)
 @router.post("/extract")
 async def extract_memory(
     request: ExtractionRequest,
@@ -72,6 +73,7 @@ async def extract_memory(
 ):
     """
     Extract structured memory from text using the hybrid pipeline.
+    Persists to memory store and ChromaDB when authenticated.
     """
     try:
         # Validate text input
@@ -82,6 +84,22 @@ async def extract_memory(
             raise HTTPException(status_code=400, detail="Text exceeds maximum length of 10000 characters")
         
         result = await extraction_pipeline.extract(request.text)
+
+        if user_id:
+            from app.services.memory_store import store_memory
+            import inspect
+            res = store_memory(
+                user_id=user_id,
+                text=result.get("cleaned_text") or request.text,
+                metadata=result,
+            )
+            if inspect.isawaitable(res):
+                mem_id = await res
+            else:
+                mem_id = res
+            result["memory_id"] = str(mem_id) if mem_id else None
+            result["success"] = True
+
         return result
     except HTTPException:
         raise
@@ -89,6 +107,7 @@ async def extract_memory(
         logger.error(f"Error extracting memory: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to extract memory")
 
+@router.post("/pipeline/validate", include_in_schema=False)
 @router.post("/validate")
 async def validate_text(
     request: ExtractionRequest,

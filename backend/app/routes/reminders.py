@@ -82,6 +82,7 @@ async def get_upcoming(
     return UpcomingRemindersResponse(count=len(reminders), reminders=reminders)
 
 
+@router.post("/{alert_id}/ack", status_code=status.HTTP_200_OK, include_in_schema=False)
 @router.post("/{alert_id}/acknowledge", status_code=status.HTTP_200_OK)
 async def acknowledge(
     alert_id: str,

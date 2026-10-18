@@ -418,3 +418,21 @@ export const getRemindersUpcoming = async () => {
     return { reminders: [] };
   }
 };
+
+export const acknowledgeReminder = async (alertId) => {
+  try {
+    const authHeader = await getAuthHeader();
+    const response = await fetch(`${BASE_URL}/reminders/${alertId}/acknowledge`, {
+      method: 'POST',
+      headers: { ...authHeader }
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to acknowledge reminder' }));
+      return { success: false, error: errorData.detail || 'Server error' };
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error acknowledging reminder:', error);
+    return { success: false, error: 'Network error during reminder acknowledgment' };
+  }
+};

@@ -234,7 +234,7 @@ async def status():
         db = get_db()
         if inspect.iscoroutine(db):
             db = await db
-        if db:
+        if db is not None:
             await db.command("ping")
             col = _memories_collection()
             total_nodes = await col.count_documents({})
@@ -250,7 +250,14 @@ async def status():
     # Check ChromaDB
     try:
         from app.config import settings
-        client = chromadb.PersistentClient(path=settings.vector_db_path)
+        try:
+            from chromadb.config import Settings as ChromaSettings
+            client = chromadb.PersistentClient(
+                path=settings.vector_db_path,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+        except TypeError:
+            client = chromadb.PersistentClient(settings.vector_db_path)
         client.heartbeat()
         health_status["services"]["chromadb"] = "healthy"
     except Exception as e:

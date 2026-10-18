@@ -5,6 +5,7 @@ from app.services.privacy import is_private, toggle_privacy
 router = APIRouter(prefix="/privacy", tags=["privacy"])
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def get_privacy(user_id: str = Depends(get_current_user_id)):
     return {"private": await is_private(user_id)}
